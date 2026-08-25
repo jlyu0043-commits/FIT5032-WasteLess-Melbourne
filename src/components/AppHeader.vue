@@ -1,0 +1,127 @@
+<script setup>
+import { RouterLink } from 'vue-router'
+</script>
+
+<template>
+  <header class="app-header">
+    <nav class="navbar navbar-expand-lg">
+      <div class="container">
+        <RouterLink class="navbar-brand" to="/">
+          <span class="logo-icon">♻</span>
+
+          <span>
+            WasteLess
+            <strong>Melbourne</strong>
+          </span>
+        </RouterLink>
+
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#mainNavbar"
+          aria-controls="mainNavbar"
+          aria-expanded="false"
+          aria-label="Toggle navigation"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+
+        <div id="mainNavbar" class="collapse navbar-collapse">
+          <div class="navbar-nav ms-auto">
+            <a class="nav-link" href="#categories">
+              Recycling Guide
+            </a>
+
+            <a class="nav-link" href="#location">
+              Find a Location
+            </a>
+
+            <a class="nav-link" href="#">
+              Login
+            </a>
+          </div>
+        </div>
+      </div>
+    </nav>
+  </header>
+</template>
+
+<style scoped>
+.app-header {
+  background-color: white;
+  border-bottom: 1px solid #e5e7eb;
+  box-shadow: 0 2px 10px rgba(30, 55, 30, 0.08);
+}
+
+.navbar {
+  min-height: 90px;
+}
+
+.navbar-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: #17202a;
+  font-size: 26px;
+  font-weight: 700;
+  text-decoration: none;
+}
+
+.navbar-brand:hover {
+  color: #17202a;
+}
+
+.navbar-brand strong {
+  color: #438c2b;
+}
+
+.logo-icon {
+  color: #438c2b;
+  font-size: 42px;
+  line-height: 1;
+}
+
+.navbar-nav {
+  gap: 28px;
+}
+
+.nav-link {
+  color: #17202a;
+  font-size: 16px;
+}
+
+.nav-link:hover {
+  color: #438c2b;
+}
+
+@media (max-width: 991px) {
+  .navbar {
+    min-height: 75px;
+  }
+
+  .navbar-collapse {
+    padding: 15px 0;
+  }
+
+  .navbar-nav {
+    gap: 5px;
+  }
+}
+
+@media (max-width: 575px) {
+  .navbar-brand {
+    gap: 7px;
+    font-size: 20px;
+    white-space: nowrap;
+  }
+
+  .logo-icon {
+    font-size: 30px;
+  }
+
+  .navbar-toggler {
+    padding: 4px 8px;
+  }
+}
+</style>
