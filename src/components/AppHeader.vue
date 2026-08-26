@@ -29,11 +29,11 @@ import { RouterLink } from 'vue-router'
 
         <div id="mainNavbar" class="collapse navbar-collapse">
           <div class="navbar-nav ms-auto">
-            <a class="nav-link" href="#categories">
+            <RouterLink class="nav-link" to="/guide">
               Recycling Guide
-            </a>
+            </RouterLink>
 
-            <a class="nav-link" href="#location">
+            <a class="nav-link" href="/#location">
               Find a Location
             </a>
 
@@ -83,16 +83,30 @@ import { RouterLink } from 'vue-router'
 }
 
 .navbar-nav {
-  gap: 28px;
+  gap: 14px;
 }
 
-.nav-link {
+.navbar-nav .nav-link {
+  padding: 10px 16px;
+  border-radius: 8px;
   color: #17202a;
-  font-size: 16px;
+  font-size: 17px;
+  font-weight: 600;
 }
 
-.nav-link:hover {
-  color: #438c2b;
+.navbar-nav .nav-link:hover {
+  background-color: #edf6e8;
+  color: #347521;
+}
+
+.navbar-nav .router-link-active {
+  background-color: #438c2b;
+  color: white;
+}
+
+.navbar-nav .router-link-active:hover {
+  background-color: #347521;
+  color: white;
 }
 
 @media (max-width: 991px) {
@@ -105,7 +119,11 @@ import { RouterLink } from 'vue-router'
   }
 
   .navbar-nav {
-    gap: 5px;
+    gap: 6px;
+  }
+
+  .navbar-nav .nav-link {
+    padding: 10px 12px;
   }
 }
 

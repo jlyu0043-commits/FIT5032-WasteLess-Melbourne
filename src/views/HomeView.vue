@@ -1,6 +1,9 @@
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
 import CategoryCard from '../components/CategoryCard.vue'
+
+const router = useRouter()
 
 const searchText = ref('')
 const searchMessage = ref('')
@@ -8,42 +11,56 @@ const searchMessage = ref('')
 const categories = [
   {
     id: 1,
+    slug: 'plastic',
     name: 'Plastic',
     icon: '♳',
   },
   {
     id: 2,
+    slug: 'glass',
     name: 'Glass',
     icon: '🍾',
   },
   {
     id: 3,
+    slug: 'paper',
     name: 'Paper',
     icon: '📄',
   },
   {
     id: 4,
+    slug: 'e-waste',
     name: 'E-waste',
     icon: '🖥️',
   },
   {
     id: 5,
+    slug: 'batteries',
     name: 'Batteries',
     icon: '🔋',
   },
   {
     id: 6,
+    slug: 'food-waste',
     name: 'Food Waste',
     icon: '🍎',
   },
 ]
 
 function searchItem() {
-  if (searchText.value.trim() === '') {
+  const searchValue = searchText.value.trim()
+
+  if (searchValue === '') {
     searchMessage.value = 'Please enter an item to search.'
-  } else {
-    searchMessage.value = `You searched for: ${searchText.value}`
+    return
   }
+
+  router.push({
+    name: 'search-results',
+    query: {
+      q: searchValue,
+    },
+  })
 }
 </script>
 

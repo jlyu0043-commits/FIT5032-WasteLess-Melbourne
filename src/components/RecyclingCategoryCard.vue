@@ -11,7 +11,7 @@ defineProps({
 
 <template>
   <RouterLink
-    class="category-card"
+    class="guide-card"
     :to="{
       name: 'category-details',
       params: {
@@ -23,29 +23,31 @@ defineProps({
       {{ category.icon }}
     </div>
 
-    <h3>{{ category.name }}</h3>
+    <h2>{{ category.name }}</h2>
+
+    <p>{{ category.description }}</p>
 
     <span class="card-arrow">→</span>
   </RouterLink>
 </template>
 
 <style scoped>
-.category-card {
-  height: 100%;
+.guide-card {
   min-height: 210px;
-  padding: 25px 15px;
+  height: 100%;
+  padding: 25px 20px;
   display: block;
   background-color: white;
   border: 1px solid #e1e7df;
-  border-radius: 14px;
-  box-shadow: 0 6px 16px rgba(28, 55, 27, 0.1);
+  border-radius: 15px;
+  box-shadow: 0 6px 16px rgba(28, 55, 27, 0.09);
   color: #17202a;
   text-align: center;
   text-decoration: none;
   transition: 0.2s;
 }
 
-.category-card:hover {
+.guide-card:hover {
   color: #17202a;
   transform: translateY(-5px);
   box-shadow: 0 12px 24px rgba(28, 55, 27, 0.15);
@@ -54,7 +56,7 @@ defineProps({
 .category-icon {
   width: 90px;
   height: 90px;
-  margin: 0 auto 12px;
+  margin: 0 auto 10px;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -63,16 +65,20 @@ defineProps({
   font-size: 46px;
 }
 
-.category-card h3 {
-  margin: 0;
+.guide-card h2 {
+  margin-bottom: 4px;
   color: #17202a;
-  font-size: 19px;
+  font-size: 22px;
   font-weight: 700;
 }
 
+.guide-card p {
+  margin-bottom: 4px;
+  color: #64748b;
+  font-size: 16px;
+}
+
 .card-arrow {
-  display: block;
-  margin-top: 7px;
   color: #438c2b;
   font-size: 28px;
 }
