@@ -33,13 +33,13 @@ import { RouterLink } from 'vue-router'
               Recycling Guide
             </RouterLink>
 
-            <a class="nav-link" href="/#location">
+            <RouterLink class="nav-link" to="/locations">
               Find a Location
-            </a>
+            </RouterLink>
 
-            <a class="nav-link" href="#">
+            <RouterLink class="nav-link" to="/login">
               Login
-            </a>
+            </RouterLink>
           </div>
         </div>
       </div>

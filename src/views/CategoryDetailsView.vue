@@ -81,9 +81,9 @@ const category = wasteCategories.find((wasteCategory) => {
               </div>
             </div>
 
-            <a class="btn location-button" href="/#location">
+            <RouterLink class="btn location-button" to="/locations">
               📍 Find a Recycling Location
-            </a>
+            </RouterLink>
           </article>
         </div>
       </section>

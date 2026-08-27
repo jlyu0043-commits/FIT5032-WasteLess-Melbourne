@@ -4,6 +4,9 @@ import SearchResultsView from '../views/SearchResultsView.vue'
 import ItemDetailsView from '../views/ItemDetailsView.vue'
 import RecyclingGuideView from '../views/RecyclingGuideView.vue'
 import CategoryDetailsView from '../views/CategoryDetailsView.vue'
+import LocationSearchView from '../views/LocationSearchView.vue'
+import LocationDetailsView from '../views/LocationDetailsView.vue'
+import LoginRegisterView from '../views/LoginRegisterView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -33,6 +36,21 @@ const router = createRouter({
       path: '/guide/:slug',
       name: 'category-details',
       component: CategoryDetailsView,
+    },
+    {
+      path: '/locations',
+      name: 'location-search',
+      component: LocationSearchView,
+    },
+    {
+      path: '/locations/:id',
+      name: 'location-details',
+      component: LocationDetailsView,
+    },
+    {
+      path: '/login',
+      name: 'login-register',
+      component: LoginRegisterView,
     },
   ],
 

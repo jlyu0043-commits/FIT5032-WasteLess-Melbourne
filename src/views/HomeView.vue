@@ -1,6 +1,6 @@
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
 import CategoryCard from '../components/CategoryCard.vue'
 
 const router = useRouter()
@@ -134,9 +134,9 @@ function searchItem() {
             </p>
           </div>
 
-          <a href="#" class="btn location-button">
+          <RouterLink to="/locations" class="btn location-button">
             📍 Find a Location
-          </a>
+          </RouterLink>
         </div>
       </div>
     </section>

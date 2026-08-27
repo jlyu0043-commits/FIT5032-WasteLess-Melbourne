@@ -92,9 +92,9 @@ function saveItem() {
             </div>
 
             <div class="location-buttons">
-              <a class="btn location-button" href="/#location">
+              <RouterLink class="btn location-button" to="/locations">
                 📍 Find a Recycling Location
-              </a>
+              </RouterLink>
 
               <button
                 class="btn save-button"
