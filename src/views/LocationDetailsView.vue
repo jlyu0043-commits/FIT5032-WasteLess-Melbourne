@@ -1,5 +1,4 @@
 <script setup>
-import { ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { recyclingLocations } from '../data/recyclingLocations.js'
 
@@ -9,23 +8,6 @@ const location = recyclingLocations.find((recyclingLocation) => {
   return recyclingLocation.id === Number(route.params.id)
 })
 
-const selectedRating = ref(0)
-const ratingMessage = ref('')
-
-function selectRating(rating) {
-  selectedRating.value = rating
-  ratingMessage.value = ''
-}
-
-function submitRating() {
-  if (selectedRating.value === 0) {
-    ratingMessage.value = 'Please select a rating first.'
-    return
-  }
-
-  ratingMessage.value =
-    `Thank you! You rated this location ${selectedRating.value} out of 5.`
-}
 </script>
 
 <template>
@@ -71,60 +53,6 @@ function submitRating() {
                   <p>{{ acceptedItem.name }}</p>
                 </div>
               </div>
-            </div>
-          </article>
-
-          <article class="details-card rating-card">
-            <div class="large-icon">
-              ☆
-            </div>
-
-            <div class="rating-summary">
-              <h2>Rating</h2>
-
-              <div class="rating-score">
-                {{ location.rating }}
-                <span>/ 5</span>
-              </div>
-
-              <div class="rating-stars">
-                ★★★★☆
-              </div>
-
-              <p>
-                Based on {{ location.ratingCount }} ratings
-              </p>
-            </div>
-
-            <div class="rating-form">
-              <h3>Rate this location</h3>
-
-              <div class="rating-buttons">
-                <button
-                  v-for="rating in 5"
-                  :key="rating"
-                  type="button"
-                  :class="{ selected: selectedRating === rating }"
-                  @click="selectRating(rating)"
-                >
-                  {{ rating }}
-                </button>
-              </div>
-
-              <button
-                class="btn submit-rating-button"
-                type="button"
-                @click="submitRating"
-              >
-                Submit Rating
-              </button>
-
-              <p
-                v-if="ratingMessage"
-                class="rating-message"
-              >
-                {{ ratingMessage }}
-              </p>
             </div>
           </article>
 
@@ -311,75 +239,6 @@ function submitRating() {
   font-weight: 600;
 }
 
-.rating-card {
-  display: grid;
-  grid-template-columns: 130px 1fr 1.5fr;
-  align-items: center;
-  gap: 30px;
-}
-
-.rating-summary h2 {
-  margin-bottom: 5px;
-}
-
-.rating-score {
-  color: #438c2b;
-  font-size: 42px;
-  font-weight: 700;
-}
-
-.rating-score span {
-  color: #334155;
-  font-size: 22px;
-  font-weight: 500;
-}
-
-.rating-stars {
-  color: #438c2b;
-  font-size: 28px;
-  letter-spacing: 4px;
-}
-
-.rating-summary p {
-  margin: 4px 0 0;
-  color: #64748b;
-}
-
-.rating-form {
-  padding-left: 35px;
-  border-left: 1px solid #dfe5dd;
-}
-
-.rating-form h3 {
-  margin-bottom: 15px;
-  color: #17202a;
-  font-size: 20px;
-}
-
-.rating-buttons {
-  margin-bottom: 18px;
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
-.rating-buttons button {
-  width: 52px;
-  height: 52px;
-  background-color: white;
-  border: 1px solid #438c2b;
-  border-radius: 9px;
-  color: #17202a;
-  font-size: 19px;
-}
-
-.rating-buttons button:hover,
-.rating-buttons button.selected {
-  background-color: #438c2b;
-  color: white;
-}
-
-.submit-rating-button,
 .directions-button,
 .return-button {
   padding: 14px 24px;
@@ -389,17 +248,10 @@ function submitRating() {
   font-weight: 700;
 }
 
-.submit-rating-button:hover,
 .directions-button:hover,
 .return-button:hover {
   background-color: #347521;
   color: white;
-}
-
-.rating-message {
-  margin: 13px 0 0;
-  color: #347521;
-  font-weight: 600;
 }
 
 .directions-card {
@@ -452,17 +304,6 @@ function submitRating() {
 }
 
 @media (max-width: 991px) {
-  .rating-card {
-    grid-template-columns: 110px 1fr;
-  }
-
-  .rating-form {
-    padding: 25px 0 0;
-    grid-column: 1 / -1;
-    border-top: 1px solid #dfe5dd;
-    border-left: none;
-  }
-
   .directions-card {
     grid-template-columns: 110px 1fr;
   }
@@ -501,7 +342,6 @@ function submitRating() {
   }
 
   .accepted-card,
-  .rating-card,
   .directions-card {
     grid-template-columns: 1fr;
     justify-items: center;
@@ -522,20 +362,6 @@ function submitRating() {
   .accepted-item {
     width: 100%;
     justify-content: center;
-  }
-
-  .rating-form {
-    width: 100%;
-    padding-top: 24px;
-    grid-column: auto;
-  }
-
-  .rating-buttons {
-    justify-content: center;
-  }
-
-  .submit-rating-button {
-    width: 100%;
   }
 
   .directions-button {

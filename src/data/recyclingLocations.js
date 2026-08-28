@@ -26,8 +26,6 @@ export const recyclingLocations = [
         icon: '📱',
       },
     ],
-    rating: 4.2,
-    ratingCount: 24,
   },
   {
     id: 2,
@@ -46,7 +44,5 @@ export const recyclingLocations = [
         icon: '🔋',
       },
     ],
-    rating: 4.0,
-    ratingCount: 16,
   },
 ]

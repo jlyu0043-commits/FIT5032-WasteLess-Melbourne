@@ -40,7 +40,7 @@ function loginUser() {
   }
 
   loginSuccess.value =
-    'Login successful. Welcome back!'
+    'Login form validation passed.'
 }
 
 function registerUser() {
@@ -84,7 +84,7 @@ function registerUser() {
   }
 
   registerSuccess.value =
-    'Registration successful. You can now log in.'
+    'Registration form submitted successfully.'
 }
 </script>
 

@@ -7,6 +7,8 @@ import CategoryDetailsView from '../views/CategoryDetailsView.vue'
 import LocationSearchView from '../views/LocationSearchView.vue'
 import LocationDetailsView from '../views/LocationDetailsView.vue'
 import LoginRegisterView from '../views/LoginRegisterView.vue'
+import MyAccountView from '../views/MyAccountView.vue'
+import AdminDashboardView from '../views/AdminDashboardView.vue'
 
 const router = createRouter({
   history: createWebHistory(import.meta.env.BASE_URL),
@@ -51,6 +53,16 @@ const router = createRouter({
       path: '/login',
       name: 'login-register',
       component: LoginRegisterView,
+    },
+    {
+      path: '/account',
+      name: 'my-account',
+      component: MyAccountView,
+    },
+    {
+      path: '/admin',
+      name: 'admin-dashboard',
+      component: AdminDashboardView,
     },
   ],
 
