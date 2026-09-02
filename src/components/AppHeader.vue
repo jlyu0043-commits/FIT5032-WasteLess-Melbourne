@@ -1,5 +1,14 @@
 <script setup>
-import { RouterLink } from 'vue-router'
+import { RouterLink, useRouter } from 'vue-router'
+import { useAuth } from '../services/authService'
+
+const router = useRouter()
+const { currentUser, isAuthenticated, logout } = useAuth()
+
+async function logoutUser() {
+  logout()
+  await router.push('/')
+}
 </script>
 
 <template>
@@ -37,7 +46,21 @@ import { RouterLink } from 'vue-router'
               Find a Location
             </RouterLink>
 
-            <RouterLink class="nav-link" to="/login">
+            <template v-if="isAuthenticated">
+              <RouterLink class="nav-link" to="/account">
+                {{ currentUser.name }}
+              </RouterLink>
+
+              <button
+                class="nav-link logout-link"
+                type="button"
+                @click="logoutUser"
+              >
+                Logout
+              </button>
+            </template>
+
+            <RouterLink v-else class="nav-link" to="/login">
               Login
             </RouterLink>
           </div>
@@ -92,6 +115,12 @@ import { RouterLink } from 'vue-router'
   color: #17202a;
   font-size: 17px;
   font-weight: 600;
+}
+
+.logout-link {
+  border: 0;
+  background: transparent;
+  text-align: left;
 }
 
 .navbar-nav .nav-link:hover {

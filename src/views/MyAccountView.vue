@@ -1,18 +1,37 @@
 <script setup>
-import { RouterLink } from 'vue-router'
+import { computed } from 'vue'
+import { RouterLink, useRouter } from 'vue-router'
+import { useAuth } from '../services/authService'
 
-const profileDetails = [
-  {
-    label: 'Name',
-    value: 'Eric Liu',
-    icon: '👤',
-  },
-  {
-    label: 'Email',
-    value: 'eric@example.com',
-    icon: '✉️',
-  },
-]
+const router = useRouter()
+const { currentUser, logout } = useAuth()
+
+const profileDetails = computed(() => {
+  if (!currentUser.value) {
+    return []
+  }
+
+  return [
+    {
+      label: 'Name',
+      value: currentUser.value.name,
+      icon: '👤',
+    },
+    {
+      label: 'Email',
+      value: currentUser.value.email,
+      icon: '✉️',
+    },
+    {
+      label: 'Account type',
+      value:
+        currentUser.value.role === 'admin'
+          ? 'Administrator'
+          : 'Community member',
+      icon: '🔐',
+    },
+  ]
+})
 
 const savedItems = [
   {
@@ -43,6 +62,11 @@ const savedLocations = [
     path: '/locations/2',
   },
 ]
+
+async function logoutUser() {
+  logout()
+  await router.push('/login')
+}
 </script>
 
 <template>
@@ -59,7 +83,7 @@ const savedLocations = [
 
     <section class="account-section">
       <div class="container">
-        <div class="row g-4">
+        <div v-if="currentUser" class="row g-4">
           <div class="col-12 col-lg-4">
             <article class="account-panel profile-panel">
               <div class="panel-heading">
@@ -84,12 +108,13 @@ const savedLocations = [
                 </div>
               </div>
 
-              <RouterLink
+              <button
                 class="btn return-button"
-                to="/login"
+                type="button"
+                @click="logoutUser"
               >
-                ← Return to Login
-              </RouterLink>
+                Logout
+              </button>
             </article>
           </div>
 
@@ -152,6 +177,18 @@ const savedLocations = [
             </article>
           </div>
         </div>
+
+        <article v-else class="account-panel signed-out-panel">
+          <div class="heading-icon">🔒</div>
+          <h2>Please sign in</h2>
+          <p>
+            Sign in to view your account and saved recycling
+            information.
+          </p>
+          <RouterLink class="btn return-button" to="/login">
+            Go to Login
+          </RouterLink>
+        </article>
       </div>
     </section>
   </main>
@@ -199,6 +236,24 @@ const savedLocations = [
   border: 1px solid #e1e7df;
   border-radius: 16px;
   box-shadow: 0 8px 22px rgba(28, 55, 27, 0.1);
+}
+
+.signed-out-panel {
+  max-width: 620px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.signed-out-panel .heading-icon {
+  margin: 0 auto 16px;
+}
+
+.signed-out-panel h2 {
+  color: #17202a;
+}
+
+.signed-out-panel p {
+  color: #475569;
 }
 
 .panel-heading {

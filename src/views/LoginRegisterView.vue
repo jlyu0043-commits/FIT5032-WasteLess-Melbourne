@@ -1,5 +1,14 @@
 <script setup>
 import { ref } from 'vue'
+import { useRouter } from 'vue-router'
+import {
+  isStrongPassword,
+  isValidEmail,
+  useAuth,
+} from '../services/authService'
+
+const router = useRouter()
+const { login, register } = useAuth()
 
 const loginEmail = ref('')
 const loginPassword = ref('')
@@ -7,6 +16,7 @@ const rememberMe = ref(false)
 const showLoginPassword = ref(false)
 const loginError = ref('')
 const loginSuccess = ref('')
+const loginLoading = ref(false)
 
 const registerName = ref('')
 const registerEmail = ref('')
@@ -18,9 +28,11 @@ const nameError = ref('')
 const emailError = ref('')
 const passwordError = ref('')
 const confirmPasswordError = ref('')
+const registerError = ref('')
 const registerSuccess = ref('')
+const registerLoading = ref(false)
 
-function loginUser() {
+async function loginUser() {
   loginError.value = ''
   loginSuccess.value = ''
 
@@ -33,21 +45,40 @@ function loginUser() {
     return
   }
 
-  if (!loginEmail.value.includes('@')) {
+  if (!isValidEmail(loginEmail.value)) {
     loginError.value =
       'Please enter a valid email address.'
     return
   }
 
-  loginSuccess.value =
-    'Login form validation passed.'
+  loginLoading.value = true
+
+  try {
+    const result = await login({
+      email: loginEmail.value,
+      password: loginPassword.value,
+      rememberUser: rememberMe.value,
+    })
+
+    if (!result.success) {
+      loginError.value = result.message
+      return
+    }
+
+    loginSuccess.value = 'Login successful.'
+    loginPassword.value = ''
+    await router.push('/account')
+  } finally {
+    loginLoading.value = false
+  }
 }
 
-function registerUser() {
+async function registerUser() {
   nameError.value = ''
   emailError.value = ''
   passwordError.value = ''
   confirmPasswordError.value = ''
+  registerError.value = ''
   registerSuccess.value = ''
 
   let hasError = false
@@ -59,15 +90,15 @@ function registerUser() {
 
   if (
     registerEmail.value.trim() === '' ||
-    !registerEmail.value.includes('@')
+    !isValidEmail(registerEmail.value)
   ) {
     emailError.value = 'Valid email is required.'
     hasError = true
   }
 
-  if (registerPassword.value.length < 8) {
+  if (!isStrongPassword(registerPassword.value)) {
     passwordError.value =
-      'Password must contain at least 8 characters.'
+      'Use at least 8 characters with uppercase, lowercase and a number.'
     hasError = true
   }
 
@@ -83,8 +114,28 @@ function registerUser() {
     return
   }
 
-  registerSuccess.value =
-    'Registration form submitted successfully.'
+  registerLoading.value = true
+
+  try {
+    const result = await register({
+      name: registerName.value,
+      email: registerEmail.value,
+      password: registerPassword.value,
+    })
+
+    if (!result.success) {
+      registerError.value = result.message
+      return
+    }
+
+    registerSuccess.value =
+      'Account created successfully.'
+    registerPassword.value = ''
+    confirmPassword.value = ''
+    await router.push('/account')
+  } finally {
+    registerLoading.value = false
+  }
 }
 </script>
 
@@ -138,6 +189,8 @@ function registerUser() {
                       type="email"
                       placeholder="Enter your email"
                       autocomplete="email"
+                      maxlength="120"
+                      required
                     />
                   </div>
                 </div>
@@ -160,12 +213,15 @@ function registerUser() {
                       "
                       placeholder="Enter your password"
                       autocomplete="current-password"
+                      maxlength="128"
+                      required
                     />
 
                     <button
                       class="password-button"
                       type="button"
                       aria-label="Show or hide password"
+                      :aria-pressed="showLoginPassword"
                       @click="
                         showLoginPassword =
                           !showLoginPassword
@@ -186,21 +242,23 @@ function registerUser() {
                     <span>Remember me</span>
                   </label>
 
-                  <a href="#">
-                    Forgot password?
-                  </a>
+                  <span class="login-note">
+                    Client-side account demo
+                  </span>
                 </div>
 
                 <button
                   class="btn auth-button"
                   type="submit"
+                  :disabled="loginLoading"
                 >
-                  Login
+                  {{ loginLoading ? 'Signing in…' : 'Login' }}
                 </button>
 
                 <p
                   v-if="loginError"
                   class="form-message error-message"
+                  role="alert"
                 >
                   {{ loginError }}
                 </p>
@@ -208,6 +266,7 @@ function registerUser() {
                 <p
                   v-if="loginSuccess"
                   class="form-message success-message"
+                  aria-live="polite"
                 >
                   {{ loginSuccess }}
                 </p>
@@ -258,6 +317,8 @@ function registerUser() {
                       type="text"
                       placeholder="Enter your full name"
                       autocomplete="name"
+                      maxlength="60"
+                      required
                     />
                   </div>
 
@@ -283,6 +344,8 @@ function registerUser() {
                       type="email"
                       placeholder="Enter your email"
                       autocomplete="email"
+                      maxlength="120"
+                      required
                     />
                   </div>
 
@@ -312,12 +375,15 @@ function registerUser() {
                       "
                       placeholder="Enter your password"
                       autocomplete="new-password"
+                      maxlength="128"
+                      required
                     />
 
                     <button
                       class="password-button"
                       type="button"
                       aria-label="Show or hide password"
+                      :aria-pressed="showRegisterPassword"
                       @click="
                         showRegisterPassword =
                           !showRegisterPassword
@@ -328,7 +394,8 @@ function registerUser() {
                   </div>
 
                   <p class="password-help">
-                    Minimum 8 characters
+                    Minimum 8 characters with uppercase,
+                    lowercase and a number
                   </p>
 
                   <p
@@ -357,6 +424,8 @@ function registerUser() {
                       "
                       placeholder="Confirm your password"
                       autocomplete="new-password"
+                      maxlength="128"
+                      required
                     />
                   </div>
 
@@ -371,13 +440,27 @@ function registerUser() {
                 <button
                   class="btn auth-button"
                   type="submit"
+                  :disabled="registerLoading"
                 >
-                  Register
+                  {{
+                    registerLoading
+                      ? 'Creating account…'
+                      : 'Register'
+                  }}
                 </button>
+
+                <p
+                  v-if="registerError"
+                  class="form-message error-message"
+                  role="alert"
+                >
+                  {{ registerError }}
+                </p>
 
                 <p
                   v-if="registerSuccess"
                   class="form-message success-message"
+                  aria-live="polite"
                 >
                   {{ registerSuccess }}
                 </p>
