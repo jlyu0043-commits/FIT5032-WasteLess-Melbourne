@@ -1,12 +1,13 @@
 <script setup>
 import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import {
   isStrongPassword,
   isValidEmail,
   useAuth,
 } from '../services/authService'
 
+const route = useRoute()
 const router = useRouter()
 const { login, register } = useAuth()
 
@@ -31,6 +32,20 @@ const confirmPasswordError = ref('')
 const registerError = ref('')
 const registerSuccess = ref('')
 const registerLoading = ref(false)
+
+function getRedirectPath() {
+  const redirectPath = route.query.redirect
+
+  if (
+    typeof redirectPath !== 'string' ||
+    !redirectPath.startsWith('/') ||
+    redirectPath.startsWith('//')
+  ) {
+    return '/account'
+  }
+
+  return redirectPath
+}
 
 async function loginUser() {
   loginError.value = ''
@@ -67,7 +82,8 @@ async function loginUser() {
 
     loginSuccess.value = 'Login successful.'
     loginPassword.value = ''
-    await router.push('/account')
+
+    await router.push(getRedirectPath())
   } finally {
     loginLoading.value = false
   }
@@ -132,6 +148,7 @@ async function registerUser() {
       'Account created successfully.'
     registerPassword.value = ''
     confirmPassword.value = ''
+
     await router.push('/account')
   } finally {
     registerLoading.value = false

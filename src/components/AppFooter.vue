@@ -1,5 +1,8 @@
 <script setup>
 import { RouterLink } from 'vue-router'
+import { useAuth } from '../services/authService'
+
+const { isAdmin } = useAuth()
 </script>
 
 <template>
@@ -14,7 +17,10 @@ import { RouterLink } from 'vue-router'
 
         <a href="#">Accessibility</a>
 
-        <RouterLink to="/admin">
+        <RouterLink
+          v-if="isAdmin"
+          to="/admin"
+        >
           Admin Dashboard
         </RouterLink>
       </div>

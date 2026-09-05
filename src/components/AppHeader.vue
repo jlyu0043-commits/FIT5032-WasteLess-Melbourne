@@ -3,7 +3,13 @@ import { RouterLink, useRouter } from 'vue-router'
 import { useAuth } from '../services/authService'
 
 const router = useRouter()
-const { currentUser, isAuthenticated, logout } = useAuth()
+
+const {
+  currentUser,
+  isAuthenticated,
+  isAdmin,
+  logout,
+} = useAuth()
 
 async function logoutUser() {
   logout()
@@ -36,18 +42,38 @@ async function logoutUser() {
           <span class="navbar-toggler-icon"></span>
         </button>
 
-        <div id="mainNavbar" class="collapse navbar-collapse">
+        <div
+          id="mainNavbar"
+          class="collapse navbar-collapse"
+        >
           <div class="navbar-nav ms-auto">
-            <RouterLink class="nav-link" to="/guide">
+            <RouterLink
+              class="nav-link"
+              to="/guide"
+            >
               Recycling Guide
             </RouterLink>
 
-            <RouterLink class="nav-link" to="/locations">
+            <RouterLink
+              class="nav-link"
+              to="/locations"
+            >
               Find a Location
             </RouterLink>
 
             <template v-if="isAuthenticated">
-              <RouterLink class="nav-link" to="/account">
+              <RouterLink
+                v-if="isAdmin"
+                class="nav-link"
+                to="/admin"
+              >
+                Admin Dashboard
+              </RouterLink>
+
+              <RouterLink
+                class="nav-link"
+                to="/account"
+              >
                 {{ currentUser.name }}
               </RouterLink>
 
@@ -60,7 +86,11 @@ async function logoutUser() {
               </button>
             </template>
 
-            <RouterLink v-else class="nav-link" to="/login">
+            <RouterLink
+              v-else
+              class="nav-link"
+              to="/login"
+            >
               Login
             </RouterLink>
           </div>
