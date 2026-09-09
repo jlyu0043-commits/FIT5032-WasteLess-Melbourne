@@ -1,35 +1,50 @@
-import { readonly, ref } from 'vue'
+import {
+  readonly,
+  ref,
+} from 'vue'
+import {
+  isSafeAccountId,
+} from './securityService.js'
 
-const RATINGS_STORAGE_KEY = 'wasteless-location-ratings'
+const RATINGS_STORAGE_KEY =
+  'wasteless-location-ratings'
 
 const seedRatings = [
   {
     locationId: 1,
     userId: 'seed-admin',
     score: 4,
-    createdAt: '2026-09-01T09:00:00.000Z',
-    updatedAt: '2026-09-01T09:00:00.000Z',
+    createdAt:
+      '2026-09-01T09:00:00.000Z',
+    updatedAt:
+      '2026-09-01T09:00:00.000Z',
   },
   {
     locationId: 1,
     userId: 'seed-user',
     score: 5,
-    createdAt: '2026-09-01T09:10:00.000Z',
-    updatedAt: '2026-09-01T09:10:00.000Z',
+    createdAt:
+      '2026-09-01T09:10:00.000Z',
+    updatedAt:
+      '2026-09-01T09:10:00.000Z',
   },
   {
     locationId: 2,
     userId: 'seed-admin',
     score: 3,
-    createdAt: '2026-09-01T09:20:00.000Z',
-    updatedAt: '2026-09-01T09:20:00.000Z',
+    createdAt:
+      '2026-09-01T09:20:00.000Z',
+    updatedAt:
+      '2026-09-01T09:20:00.000Z',
   },
   {
     locationId: 2,
     userId: 'seed-user',
     score: 4,
-    createdAt: '2026-09-01T09:30:00.000Z',
-    updatedAt: '2026-09-01T09:30:00.000Z',
+    createdAt:
+      '2026-09-01T09:30:00.000Z',
+    updatedAt:
+      '2026-09-01T09:30:00.000Z',
   },
 ]
 
@@ -40,8 +55,10 @@ function copySeedRatings() {
 }
 
 function normaliseRating(rating) {
-  const locationId = Number(rating?.locationId)
+  const locationId =
+    Number(rating?.locationId)
   const score = Number(rating?.score)
+
   const userId =
     typeof rating?.userId === 'string'
       ? rating.userId.trim()
@@ -53,8 +70,7 @@ function normaliseRating(rating) {
     !Number.isInteger(score) ||
     score < 1 ||
     score > 5 ||
-    !userId ||
-    userId.length > 100
+    !isSafeAccountId(userId)
   ) {
     return null
   }
@@ -89,17 +105,21 @@ function writeRatings(ratings) {
 
 function readRatings() {
   try {
-    const storedRatings = localStorage.getItem(
-      RATINGS_STORAGE_KEY,
-    )
+    const storedRatings =
+      localStorage.getItem(
+        RATINGS_STORAGE_KEY,
+      )
 
     if (storedRatings === null) {
-      const initialRatings = copySeedRatings()
+      const initialRatings =
+        copySeedRatings()
+
       writeRatings(initialRatings)
       return initialRatings
     }
 
-    const parsedRatings = JSON.parse(storedRatings)
+    const parsedRatings =
+      JSON.parse(storedRatings)
 
     if (!Array.isArray(parsedRatings)) {
       return []
@@ -107,17 +127,24 @@ function readRatings() {
 
     const uniqueRatings = new Map()
 
-    for (const storedRating of parsedRatings) {
-      const validRating = normaliseRating(storedRating)
+    for (
+      const storedRating of parsedRatings
+    ) {
+      const validRating =
+        normaliseRating(storedRating)
 
       if (!validRating) {
         continue
       }
 
       const ratingKey =
-        `${validRating.locationId}:${validRating.userId}`
+        `${validRating.locationId}:` +
+        validRating.userId
 
-      uniqueRatings.set(ratingKey, validRating)
+      uniqueRatings.set(
+        ratingKey,
+        validRating,
+      )
     }
 
     return [...uniqueRatings.values()]
@@ -142,24 +169,35 @@ function saveRating({
   if (!validRating) {
     return {
       success: false,
-      message: 'Please select a rating from 1 to 5.',
+      message:
+        'Please select a rating from 1 to 5.',
     }
   }
 
   const existingRatingIndex =
-    ratingsState.value.findIndex((rating) => {
-      return (
-        rating.locationId === validRating.locationId &&
-        rating.userId === validRating.userId
-      )
-    })
+    ratingsState.value.findIndex(
+      (rating) => {
+        return (
+          rating.locationId ===
+            validRating.locationId &&
+          rating.userId ===
+            validRating.userId
+        )
+      },
+    )
 
   const now = new Date().toISOString()
-  const updatedRatings = [...ratingsState.value]
+  const updatedRatings = [
+    ...ratingsState.value,
+  ]
 
   if (existingRatingIndex >= 0) {
-    updatedRatings[existingRatingIndex] = {
-      ...updatedRatings[existingRatingIndex],
+    updatedRatings[
+      existingRatingIndex
+    ] = {
+      ...updatedRatings[
+        existingRatingIndex
+      ],
       score: validRating.score,
       updatedAt: now,
     }
@@ -183,7 +221,8 @@ function saveRating({
 
   return {
     success: true,
-    updated: existingRatingIndex >= 0,
+    updated:
+      existingRatingIndex >= 0,
   }
 }
 

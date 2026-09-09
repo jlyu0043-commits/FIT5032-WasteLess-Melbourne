@@ -1,6 +1,9 @@
 <script setup>
 import { ref } from 'vue'
-import { useRoute, useRouter } from 'vue-router'
+import {
+  useRoute,
+  useRouter,
+} from 'vue-router'
 import SearchResultCard from '../components/SearchResultCard.vue'
 import { wasteItems } from '../data/wasteItems.js'
 
@@ -8,31 +11,45 @@ const route = useRoute()
 const router = useRouter()
 
 const searchText = ref(
-  typeof route.query.q === 'string' ? route.query.q : '',
+  typeof route.query.q === 'string'
+    ? route.query.q.trim().slice(0, 80)
+    : '',
 )
 
 const searchedText = ref(searchText.value)
 const results = ref([])
 
 function findResults() {
-  const searchTerm = searchedText.value.toLowerCase().trim()
+  const searchTerm =
+    searchedText.value
+      .toLowerCase()
+      .trim()
 
   if (searchTerm === '') {
     results.value = []
     return
   }
 
-  results.value = wasteItems.filter((item) => {
-    return (
-      item.name.toLowerCase().includes(searchTerm) ||
-      item.category.toLowerCase().includes(searchTerm) ||
-      item.searchTerms.toLowerCase().includes(searchTerm)
-    )
-  })
+  results.value = wasteItems.filter(
+    (item) => {
+      return (
+        item.name
+          .toLowerCase()
+          .includes(searchTerm) ||
+        item.category
+          .toLowerCase()
+          .includes(searchTerm) ||
+        item.searchTerms
+          .toLowerCase()
+          .includes(searchTerm)
+      )
+    },
+  )
 }
 
 function searchItems() {
-  searchedText.value = searchText.value.trim()
+  searchedText.value =
+    searchText.value.trim().slice(0, 80)
 
   findResults()
 
@@ -63,6 +80,7 @@ findResults()
               class="form-control"
               placeholder="Search an item..."
               aria-label="Search an item"
+              maxlength="80"
             />
 
             <button class="btn search-button" type="submit">

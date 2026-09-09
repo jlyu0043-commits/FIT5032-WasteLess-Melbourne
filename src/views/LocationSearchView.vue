@@ -54,6 +54,7 @@ function searchLocations() {
                 type="text"
                 placeholder="Enter suburb or postcode"
                 aria-label="Enter suburb or postcode"
+                maxlength="80"
               />
             </div>
           </div>
@@ -94,6 +95,8 @@ function searchLocations() {
                 title="Recycling locations near Clayton and Oakleigh"
                 src="https://www.openstreetmap.org/export/embed.html?bbox=145.0500%2C-37.9600%2C145.1600%2C-37.8600&layer=mapnik"
                 loading="lazy"
+                sandbox="allow-scripts allow-same-origin allow-popups"
+                referrerpolicy="no-referrer"
               ></iframe>
 
               <div class="map-marker first-marker">

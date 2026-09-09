@@ -48,10 +48,12 @@ const categories = [
 ]
 
 function searchItem() {
-  const searchValue = searchText.value.trim()
+  const searchValue =
+    searchText.value.trim().slice(0, 80)
 
   if (searchValue === '') {
-    searchMessage.value = 'Please enter an item to search.'
+    searchMessage.value =
+      'Please enter an item to search.'
     return
   }
 
@@ -82,6 +84,7 @@ function searchItem() {
               class="form-control"
               placeholder="Search an item..."
               aria-label="Search an item"
+              maxlength="80"
             />
 
             <button class="btn search-button" type="submit">

@@ -11,6 +11,9 @@ import {
 import { recyclingLocations } from '../data/recyclingLocations.js'
 import { useAuth } from '../services/authService'
 import { useRatings } from '../services/ratingService.js'
+import {
+  createSafeGoogleMapsUrl,
+} from '../services/securityService.js'
 
 const route = useRoute()
 
@@ -30,12 +33,20 @@ const ratingMessage = ref('')
 const ratingError = ref('')
 
 const location = computed(() => {
-  return recyclingLocations.find((recyclingLocation) => {
-    return (
-      recyclingLocation.id ===
-      Number(route.params.id)
-    )
-  })
+  return recyclingLocations.find(
+    (recyclingLocation) => {
+      return (
+        recyclingLocation.id ===
+        Number(route.params.id)
+      )
+    },
+  )
+})
+
+const directionsUrl = computed(() => {
+  return createSafeGoogleMapsUrl(
+    location.value?.address,
+  )
 })
 
 const locationRatings = computed(() => {
@@ -44,7 +55,10 @@ const locationRatings = computed(() => {
   }
 
   return ratings.value.filter((rating) => {
-    return rating.locationId === location.value.id
+    return (
+      rating.locationId ===
+      location.value.id
+    )
   })
 })
 
@@ -57,12 +71,13 @@ const averageRating = computed(() => {
     return 0
   }
 
-  const ratingTotal = locationRatings.value.reduce(
-    (total, rating) => {
-      return total + rating.score
-    },
-    0,
-  )
+  const ratingTotal =
+    locationRatings.value.reduce(
+      (total, rating) => {
+        return total + rating.score
+      },
+      0,
+    )
 
   return ratingTotal / ratingCount.value
 })
@@ -88,17 +103,30 @@ const ratingCountText = computed(() => {
 })
 
 const currentUserRating = computed(() => {
-  if (!currentUser.value || !location.value) {
+  if (
+    !currentUser.value ||
+    !location.value
+  ) {
     return null
   }
 
-  return locationRatings.value.find((rating) => {
-    return rating.userId === currentUser.value.id
-  }) ?? null
+  return (
+    locationRatings.value.find(
+      (rating) => {
+        return (
+          rating.userId ===
+          currentUser.value.id
+        )
+      },
+    ) ?? null
+  )
 })
 
 const displayedSelection = computed(() => {
-  return hoverRating.value || selectedRating.value
+  return (
+    hoverRating.value ||
+    selectedRating.value
+  )
 })
 
 watch(
@@ -139,7 +167,9 @@ function submitRating() {
   }
 
   if (
-    !Number.isInteger(selectedRating.value) ||
+    !Number.isInteger(
+      selectedRating.value,
+    ) ||
     selectedRating.value < 1 ||
     selectedRating.value > 5
   ) {
@@ -384,12 +414,9 @@ function submitRating() {
 
             <a
               class="btn directions-button"
-              :href="
-                'https://www.google.com/maps/search/?api=1&query=' +
-                location.address
-              "
+              :href="directionsUrl"
               target="_blank"
-              rel="noopener"
+              rel="noopener noreferrer"
             >
               📍 Get Directions
             </a>

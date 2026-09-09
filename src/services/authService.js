@@ -1,26 +1,49 @@
-import { computed, readonly, ref } from 'vue'
+import {
+  computed,
+  readonly,
+  ref,
+} from 'vue'
+import {
+  isSafeAccountId,
+  validateDisplayName,
+} from './securityService.js'
 
 const USERS_STORAGE_KEY = 'wasteless-users'
-const REMEMBERED_USER_KEY = 'wasteless-remembered-user'
-const SESSION_USER_KEY = 'wasteless-session-user'
+const REMEMBERED_USER_KEY =
+  'wasteless-remembered-user'
+const SESSION_USER_KEY =
+  'wasteless-session-user'
 
-const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-const PASSWORD_PATTERN = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,128}$/
+const EMAIL_PATTERN =
+  /^[^\s@]+@[^\s@]+\.[^\s@]+$/u
+const UNSAFE_EMAIL_PATTERN = /[<>\p{Cc}]/u
+const PASSWORD_PATTERN =
+  /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,128}$/
 
 const seedAccounts = [
   {
     id: 'seed-admin',
     name: 'WasteLess Administrator',
     email: 'admin@wasteless.test',
-    password: 'Admin123!',
     role: 'admin',
+    passwordSalt:
+      'y/SM95SRMBe46BTicwor3g==',
+    passwordHash:
+      'a3vp7Lm9Wnuxv2DJ3HgT+GPNT42MSWN+qaHiVrcD1ws=',
+    createdAt:
+      '2026-09-01T08:00:00.000Z',
   },
   {
     id: 'seed-user',
     name: 'Demo User',
     email: 'user@wasteless.test',
-    password: 'User123!',
     role: 'user',
+    passwordSalt:
+      'yN7r3rKcFsxWSU8UBOkhLQ==',
+    passwordHash:
+      'Qt10f5rkc3EppMGI4FRiK1S3YTeWs4qGtX42jNoDj+E=',
+    createdAt:
+      '2026-09-01T08:10:00.000Z',
   },
 ]
 
@@ -47,9 +70,152 @@ function writeJson(storage, key, value) {
   }
 }
 
+function bytesToBase64(bytes) {
+  return btoa(String.fromCharCode(...bytes))
+}
+
+function base64ToBytes(value) {
+  return Uint8Array.from(
+    atob(value),
+    (character) => character.charCodeAt(0),
+  )
+}
+
+function isValidEncodedBytes(
+  value,
+  expectedLength,
+) {
+  if (typeof value !== 'string') {
+    return false
+  }
+
+  try {
+    return (
+      base64ToBytes(value).length ===
+      expectedLength
+    )
+  } catch {
+    return false
+  }
+}
+
+function normaliseTimestamp(value) {
+  if (typeof value !== 'string') {
+    return new Date().toISOString()
+  }
+
+  const timestamp = Date.parse(value)
+
+  if (Number.isNaN(timestamp)) {
+    return new Date().toISOString()
+  }
+
+  return new Date(timestamp).toISOString()
+}
+
+export function normaliseEmail(email) {
+  if (typeof email !== 'string') {
+    return ''
+  }
+
+  return email.trim().toLowerCase()
+}
+
+export function isValidEmail(email) {
+  const safeEmail = normaliseEmail(email)
+
+  return (
+    safeEmail.length <= 120 &&
+    EMAIL_PATTERN.test(safeEmail) &&
+    !UNSAFE_EMAIL_PATTERN.test(safeEmail)
+  )
+}
+
+export function isStrongPassword(password) {
+  return (
+    typeof password === 'string' &&
+    PASSWORD_PATTERN.test(password)
+  )
+}
+
+function normaliseStoredUser(user) {
+  if (
+    !user ||
+    typeof user !== 'object' ||
+    Array.isArray(user)
+  ) {
+    return null
+  }
+
+  const nameResult =
+    validateDisplayName(user.name)
+  const safeEmail =
+    normaliseEmail(user.email)
+
+  if (
+    !isSafeAccountId(user.id) ||
+    !nameResult.success ||
+    !isValidEmail(safeEmail) ||
+    !isValidEncodedBytes(
+      user.passwordSalt,
+      16,
+    ) ||
+    !isValidEncodedBytes(
+      user.passwordHash,
+      32,
+    )
+  ) {
+    return null
+  }
+
+  return {
+    id: user.id,
+    name: nameResult.value,
+    email: safeEmail,
+    role:
+      user.id === 'seed-admin'
+        ? 'admin'
+        : 'user',
+    passwordSalt: user.passwordSalt,
+    passwordHash: user.passwordHash,
+    createdAt:
+      normaliseTimestamp(user.createdAt),
+  }
+}
+
 function readUsers() {
-  const storedUsers = readJson(localStorage, USERS_STORAGE_KEY, [])
-  return Array.isArray(storedUsers) ? storedUsers : []
+  const storedUsers = readJson(
+    localStorage,
+    USERS_STORAGE_KEY,
+    [],
+  )
+
+  if (!Array.isArray(storedUsers)) {
+    return []
+  }
+
+  const validUsers = []
+  const usedIds = new Set()
+  const usedEmails = new Set()
+
+  for (const storedUser of storedUsers) {
+    const validUser =
+      normaliseStoredUser(storedUser)
+
+    if (
+      !validUser ||
+      usedIds.has(validUser.id) ||
+      usedEmails.has(validUser.email)
+    ) {
+      continue
+    }
+
+    usedIds.add(validUser.id)
+    usedEmails.add(validUser.email)
+    validUsers.push(validUser)
+  }
+
+  return validUsers
 }
 
 function publicUser(user) {
@@ -62,34 +228,58 @@ function publicUser(user) {
   }
 }
 
-function readCurrentUser() {
-  const rememberedUser = readJson(
+function extractSessionUserId(sessionValue) {
+  if (
+    !sessionValue ||
+    typeof sessionValue !== 'object'
+  ) {
+    return ''
+  }
+
+  const userId =
+    typeof sessionValue.userId === 'string'
+      ? sessionValue.userId
+      : sessionValue.id
+
+  return isSafeAccountId(userId)
+    ? userId
+    : ''
+}
+
+function readStoredSession() {
+  const rememberedSession = readJson(
     localStorage,
     REMEMBERED_USER_KEY,
     null,
   )
 
-  if (rememberedUser?.id) {
-    return rememberedUser
+  const rememberedUserId =
+    extractSessionUserId(rememberedSession)
+
+  if (rememberedUserId) {
+    return {
+      userId: rememberedUserId,
+      rememberUser: true,
+    }
   }
 
-  const sessionUser = readJson(
+  const browserSession = readJson(
     sessionStorage,
     SESSION_USER_KEY,
     null,
   )
 
-  return sessionUser?.id ? sessionUser : null
-}
+  const sessionUserId =
+    extractSessionUserId(browserSession)
 
-function bytesToBase64(bytes) {
-  return btoa(String.fromCharCode(...bytes))
-}
+  if (sessionUserId) {
+    return {
+      userId: sessionUserId,
+      rememberUser: false,
+    }
+  }
 
-function base64ToBytes(value) {
-  return Uint8Array.from(atob(value), (character) =>
-    character.charCodeAt(0),
-  )
+  return null
 }
 
 function createSalt() {
@@ -100,64 +290,79 @@ function createSalt() {
 
 async function hashPassword(password, salt) {
   const encoder = new TextEncoder()
-  const keyMaterial = await crypto.subtle.importKey(
-    'raw',
-    encoder.encode(password),
-    'PBKDF2',
-    false,
-    ['deriveBits'],
-  )
 
-  const derivedBits = await crypto.subtle.deriveBits(
-    {
-      name: 'PBKDF2',
-      salt: base64ToBytes(salt),
-      iterations: 120000,
-      hash: 'SHA-256',
-    },
-    keyMaterial,
-    256,
-  )
+  const keyMaterial =
+    await crypto.subtle.importKey(
+      'raw',
+      encoder.encode(password),
+      'PBKDF2',
+      false,
+      ['deriveBits'],
+    )
 
-  return bytesToBase64(new Uint8Array(derivedBits))
+  const derivedBits =
+    await crypto.subtle.deriveBits(
+      {
+        name: 'PBKDF2',
+        salt: base64ToBytes(salt),
+        iterations: 120000,
+        hash: 'SHA-256',
+      },
+      keyMaterial,
+      256,
+    )
+
+  return bytesToBase64(
+    new Uint8Array(derivedBits),
+  )
 }
 
 function createUserId() {
-  if (typeof crypto.randomUUID === 'function') {
+  if (
+    typeof crypto.randomUUID === 'function'
+  ) {
     return crypto.randomUUID()
   }
 
-  return `user-${Date.now()}-${Math.random().toString(16).slice(2)}`
+  return (
+    `user-${Date.now()}-` +
+    Math.random().toString(16).slice(2)
+  )
 }
 
-export function normaliseEmail(email) {
-  return email.trim().toLowerCase()
-}
+const currentUserState = ref(null)
 
-export function isValidEmail(email) {
-  return EMAIL_PATTERN.test(normaliseEmail(email))
-}
-
-export function isStrongPassword(password) {
-  return PASSWORD_PATTERN.test(password)
-}
-
-const currentUserState = ref(readCurrentUser())
-
-function saveCurrentUser(user, rememberUser) {
+function saveCurrentUser(
+  user,
+  rememberUser,
+) {
   const safeUser = publicUser(user)
+  const sessionValue = {
+    userId: safeUser.id,
+  }
 
-  localStorage.removeItem(REMEMBERED_USER_KEY)
-  sessionStorage.removeItem(SESSION_USER_KEY)
+  localStorage.removeItem(
+    REMEMBERED_USER_KEY,
+  )
+  sessionStorage.removeItem(
+    SESSION_USER_KEY,
+  )
 
   const selectedStorage = rememberUser
     ? localStorage
     : sessionStorage
+
   const selectedKey = rememberUser
     ? REMEMBERED_USER_KEY
     : SESSION_USER_KEY
 
-  if (!writeJson(selectedStorage, selectedKey, safeUser)) {
+  if (
+    !writeJson(
+      selectedStorage,
+      selectedKey,
+      sessionValue,
+    )
+  ) {
     return false
   }
 
@@ -165,71 +370,96 @@ function saveCurrentUser(user, rememberUser) {
   return true
 }
 
-async function initialiseAccounts() {
-  const users = readUsers()
-  let accountsChanged = false
+function initialiseAccounts() {
+  let users = readUsers()
 
   for (const seedAccount of seedAccounts) {
     const accountExists = users.some(
-      (user) => user.email === seedAccount.email,
+      (user) => {
+        return (
+          user.id === seedAccount.id &&
+          user.email === seedAccount.email
+        )
+      },
     )
 
     if (accountExists) {
       continue
     }
 
-    const passwordSalt = createSalt()
-    const passwordHash = await hashPassword(
-      seedAccount.password,
-      passwordSalt,
-    )
-
-    users.push({
-      id: seedAccount.id,
-      name: seedAccount.name,
-      email: seedAccount.email,
-      role: seedAccount.role,
-      passwordSalt,
-      passwordHash,
-      createdAt: new Date().toISOString(),
+    users = users.filter((user) => {
+      return (
+        user.id !== seedAccount.id &&
+        user.email !== seedAccount.email
+      )
     })
 
-    accountsChanged = true
+    users.push({
+      ...seedAccount,
+    })
   }
 
-  if (accountsChanged) {
-    writeJson(localStorage, USERS_STORAGE_KEY, users)
+  writeJson(
+    localStorage,
+    USERS_STORAGE_KEY,
+    users,
+  )
+
+  const storedSession = readStoredSession()
+
+  if (!storedSession) {
+    currentUserState.value = null
+    return users
   }
 
-  if (
-    currentUserState.value &&
-    !users.some((user) => user.id === currentUserState.value.id)
-  ) {
+  const matchingUser = users.find(
+    (user) => {
+      return user.id === storedSession.userId
+    },
+  )
+
+  if (!matchingUser) {
     logout()
+    return users
   }
+
+  saveCurrentUser(
+    matchingUser,
+    storedSession.rememberUser,
+  )
 
   return users
 }
 
-const authReady = initialiseAccounts()
+const authReady = Promise.resolve().then(
+  initialiseAccounts,
+)
 
-async function register({ name, email, password }) {
+async function register({
+  name,
+  email,
+  password,
+}) {
   await authReady
-  const users = readUsers()
-  const safeName = name.trim()
-  const safeEmail = normaliseEmail(email)
 
-  if (!safeName || safeName.length > 60) {
+  const users = readUsers()
+  const nameResult =
+    validateDisplayName(name)
+  const safeEmail =
+    normaliseEmail(email)
+
+  if (!nameResult.success) {
     return {
       success: false,
-      message: 'Please enter a name of 60 characters or fewer.',
+      message: nameResult.message,
     }
   }
 
-  if (!isValidEmail(safeEmail) || safeEmail.length > 120) {
+  if (!isValidEmail(safeEmail)) {
     return {
       success: false,
-      message: 'Please enter a valid email address.',
+      message:
+        'Please enter a valid email address.',
     }
   }
 
@@ -242,25 +472,42 @@ async function register({ name, email, password }) {
   }
 
   const accountExists = users.some(
-    (user) => normaliseEmail(user.email) === safeEmail,
+    (user) => {
+      return (
+        normaliseEmail(user.email) ===
+        safeEmail
+      )
+    },
   )
 
   if (accountExists) {
     return {
       success: false,
-      message: 'This email address is already registered.',
+      message:
+        'This email address is already registered.',
     }
   }
 
-  const passwordSalt = createSalt()
-  const passwordHash = await hashPassword(
-    password,
-    passwordSalt,
-  )
+  let passwordSalt
+  let passwordHash
+
+  try {
+    passwordSalt = createSalt()
+    passwordHash = await hashPassword(
+      password,
+      passwordSalt,
+    )
+  } catch {
+    return {
+      success: false,
+      message:
+        'Your account could not be secured. Please try again.',
+    }
+  }
 
   const newUser = {
     id: createUserId(),
-    name: safeName,
+    name: nameResult.value,
     email: safeEmail,
     role: 'user',
     passwordSalt,
@@ -268,19 +515,30 @@ async function register({ name, email, password }) {
     createdAt: new Date().toISOString(),
   }
 
-  const updatedUsers = [...users, newUser]
+  const updatedUsers = [
+    ...users,
+    newUser,
+  ]
 
-  if (!writeJson(localStorage, USERS_STORAGE_KEY, updatedUsers)) {
+  if (
+    !writeJson(
+      localStorage,
+      USERS_STORAGE_KEY,
+      updatedUsers,
+    )
+  ) {
     return {
       success: false,
-      message: 'Your account could not be saved. Please try again.',
+      message:
+        'Your account could not be saved. Please try again.',
     }
   }
 
   if (!saveCurrentUser(newUser, false)) {
     return {
       success: false,
-      message: 'Your account was created, but sign in was unsuccessful.',
+      message:
+        'Your account was created, but sign in was unsuccessful.',
     }
   }
 
@@ -290,37 +548,84 @@ async function register({ name, email, password }) {
   }
 }
 
-async function login({ email, password, rememberUser }) {
+async function login({
+  email,
+  password,
+  rememberUser,
+}) {
   await authReady
+
   const users = readUsers()
-  const safeEmail = normaliseEmail(email)
+  const safeEmail =
+    normaliseEmail(email)
+
+  if (
+    !isValidEmail(safeEmail) ||
+    typeof password !== 'string' ||
+    password.length === 0 ||
+    password.length > 128
+  ) {
+    return {
+      success: false,
+      message:
+        'The email or password is incorrect.',
+    }
+  }
+
   const matchingUser = users.find(
-    (user) => normaliseEmail(user.email) === safeEmail,
+    (user) => {
+      return (
+        normaliseEmail(user.email) ===
+        safeEmail
+      )
+    },
   )
 
   if (!matchingUser) {
     return {
       success: false,
-      message: 'The email or password is incorrect.',
+      message:
+        'The email or password is incorrect.',
     }
   }
 
-  const enteredPasswordHash = await hashPassword(
-    password,
-    matchingUser.passwordSalt,
-  )
+  let enteredPasswordHash
 
-  if (enteredPasswordHash !== matchingUser.passwordHash) {
+  try {
+    enteredPasswordHash =
+      await hashPassword(
+        password,
+        matchingUser.passwordSalt,
+      )
+  } catch {
     return {
       success: false,
-      message: 'The email or password is incorrect.',
+      message:
+        'The email or password is incorrect.',
     }
   }
 
-  if (!saveCurrentUser(matchingUser, rememberUser)) {
+  if (
+    enteredPasswordHash !==
+    matchingUser.passwordHash
+  ) {
     return {
       success: false,
-      message: 'Your session could not be saved. Please try again.',
+      message:
+        'The email or password is incorrect.',
+    }
+  }
+
+  if (
+    !saveCurrentUser(
+      matchingUser,
+      Boolean(rememberUser),
+    )
+  ) {
+    return {
+      success: false,
+      message:
+        'Your session could not be saved. Please try again.',
     }
   }
 
@@ -331,19 +636,30 @@ async function login({ email, password, rememberUser }) {
 }
 
 function logout() {
-  localStorage.removeItem(REMEMBERED_USER_KEY)
-  sessionStorage.removeItem(SESSION_USER_KEY)
+  localStorage.removeItem(
+    REMEMBERED_USER_KEY,
+  )
+  sessionStorage.removeItem(
+    SESSION_USER_KEY,
+  )
+
   currentUserState.value = null
 }
 
 export function useAuth() {
   return {
     authReady,
-    currentUser: readonly(currentUserState),
-    isAuthenticated: computed(() => Boolean(currentUserState.value)),
-    isAdmin: computed(
-      () => currentUserState.value?.role === 'admin',
-    ),
+    currentUser:
+      readonly(currentUserState),
+    isAuthenticated: computed(() => {
+      return Boolean(currentUserState.value)
+    }),
+    isAdmin: computed(() => {
+      return (
+        currentUserState.value?.role ===
+        'admin'
+      )
+    }),
     login,
     logout,
     register,
