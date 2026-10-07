@@ -3,115 +3,46 @@ import {
   readonly,
   ref,
 } from 'vue'
+
 import {
-  isSafeAccountId,
+  browserLocalPersistence,
+  browserSessionPersistence,
+  createUserWithEmailAndPassword,
+  onAuthStateChanged,
+  setPersistence,
+  signInWithEmailAndPassword,
+  signOut,
+} from 'firebase/auth'
+
+import {
+  doc,
+  getDoc,
+  serverTimestamp,
+  setDoc,
+} from 'firebase/firestore'
+
+import {
+  auth,
+  db,
+} from './firebase.js'
+
+import {
   validateDisplayName,
 } from './securityService.js'
 
-const USERS_STORAGE_KEY = 'wasteless-users'
-const REMEMBERED_USER_KEY =
-  'wasteless-remembered-user'
-const SESSION_USER_KEY =
-  'wasteless-session-user'
 
 const EMAIL_PATTERN =
   /^[^\s@]+@[^\s@]+\.[^\s@]+$/u
-const UNSAFE_EMAIL_PATTERN = /[<>\p{Cc}]/u
+
+const UNSAFE_EMAIL_PATTERN =
+  /[<>\p{Cc}]/u
+
 const PASSWORD_PATTERN =
   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,128}$/
 
-const seedAccounts = [
-  {
-    id: 'seed-admin',
-    name: 'WasteLess Administrator',
-    email: 'admin@wasteless.test',
-    role: 'admin',
-    passwordSalt:
-      'y/SM95SRMBe46BTicwor3g==',
-    passwordHash:
-      'a3vp7Lm9Wnuxv2DJ3HgT+GPNT42MSWN+qaHiVrcD1ws=',
-    createdAt:
-      '2026-09-01T08:00:00.000Z',
-  },
-  {
-    id: 'seed-user',
-    name: 'Demo User',
-    email: 'user@wasteless.test',
-    role: 'user',
-    passwordSalt:
-      'yN7r3rKcFsxWSU8UBOkhLQ==',
-    passwordHash:
-      'Qt10f5rkc3EppMGI4FRiK1S3YTeWs4qGtX42jNoDj+E=',
-    createdAt:
-      '2026-09-01T08:10:00.000Z',
-  },
-]
 
-function readJson(storage, key, fallbackValue) {
-  try {
-    const storedValue = storage.getItem(key)
+const currentUserState = ref(null)
 
-    if (!storedValue) {
-      return fallbackValue
-    }
-
-    return JSON.parse(storedValue)
-  } catch {
-    return fallbackValue
-  }
-}
-
-function writeJson(storage, key, value) {
-  try {
-    storage.setItem(key, JSON.stringify(value))
-    return true
-  } catch {
-    return false
-  }
-}
-
-function bytesToBase64(bytes) {
-  return btoa(String.fromCharCode(...bytes))
-}
-
-function base64ToBytes(value) {
-  return Uint8Array.from(
-    atob(value),
-    (character) => character.charCodeAt(0),
-  )
-}
-
-function isValidEncodedBytes(
-  value,
-  expectedLength,
-) {
-  if (typeof value !== 'string') {
-    return false
-  }
-
-  try {
-    return (
-      base64ToBytes(value).length ===
-      expectedLength
-    )
-  } catch {
-    return false
-  }
-}
-
-function normaliseTimestamp(value) {
-  if (typeof value !== 'string') {
-    return new Date().toISOString()
-  }
-
-  const timestamp = Date.parse(value)
-
-  if (Number.isNaN(timestamp)) {
-    return new Date().toISOString()
-  }
-
-  return new Date(timestamp).toISOString()
-}
 
 export function normaliseEmail(email) {
   if (typeof email !== 'string') {
@@ -120,6 +51,7 @@ export function normaliseEmail(email) {
 
   return email.trim().toLowerCase()
 }
+
 
 export function isValidEmail(email) {
   const safeEmail = normaliseEmail(email)
@@ -131,6 +63,7 @@ export function isValidEmail(email) {
   )
 }
 
+
 export function isStrongPassword(password) {
   return (
     typeof password === 'string' &&
@@ -138,313 +71,90 @@ export function isStrongPassword(password) {
   )
 }
 
-function normaliseStoredUser(user) {
-  if (
-    !user ||
-    typeof user !== 'object' ||
-    Array.isArray(user)
-  ) {
-    return null
-  }
 
-  const nameResult =
-    validateDisplayName(user.name)
-  const safeEmail =
-    normaliseEmail(user.email)
-
-  if (
-    !isSafeAccountId(user.id) ||
-    !nameResult.success ||
-    !isValidEmail(safeEmail) ||
-    !isValidEncodedBytes(
-      user.passwordSalt,
-      16,
-    ) ||
-    !isValidEncodedBytes(
-      user.passwordHash,
-      32,
-    )
-  ) {
-    return null
-  }
-
+function publicUser(firebaseUser, profile) {
   return {
-    id: user.id,
-    name: nameResult.value,
-    email: safeEmail,
+    id: firebaseUser.uid,
+    name:
+      profile?.name ||
+      firebaseUser.displayName ||
+      '',
+    email:
+      profile?.email ||
+      firebaseUser.email ||
+      '',
     role:
-      user.id === 'seed-admin'
+      profile?.role === 'admin'
         ? 'admin'
         : 'user',
-    passwordSalt: user.passwordSalt,
-    passwordHash: user.passwordHash,
     createdAt:
-      normaliseTimestamp(user.createdAt),
+      profile?.createdAt?.toDate?.()?.toISOString?.() ||
+      '',
   }
 }
 
-function readUsers() {
-  const storedUsers = readJson(
-    localStorage,
-    USERS_STORAGE_KEY,
-    [],
+
+async function loadUserProfile(firebaseUser) {
+  if (!firebaseUser) {
+    return null
+  }
+
+  const userRef = doc(
+    db,
+    'users',
+    firebaseUser.uid,
   )
 
-  if (!Array.isArray(storedUsers)) {
-    return []
-  }
+  const snapshot = await getDoc(userRef)
 
-  const validUsers = []
-  const usedIds = new Set()
-  const usedEmails = new Set()
-
-  for (const storedUser of storedUsers) {
-    const validUser =
-      normaliseStoredUser(storedUser)
-
-    if (
-      !validUser ||
-      usedIds.has(validUser.id) ||
-      usedEmails.has(validUser.email)
-    ) {
-      continue
-    }
-
-    usedIds.add(validUser.id)
-    usedEmails.add(validUser.email)
-    validUsers.push(validUser)
-  }
-
-  return validUsers
-}
-
-function publicUser(user) {
-  return {
-    id: user.id,
-    name: user.name,
-    email: user.email,
-    role: user.role,
-    createdAt: user.createdAt,
-  }
-}
-
-function extractSessionUserId(sessionValue) {
-  if (
-    !sessionValue ||
-    typeof sessionValue !== 'object'
-  ) {
-    return ''
-  }
-
-  const userId =
-    typeof sessionValue.userId === 'string'
-      ? sessionValue.userId
-      : sessionValue.id
-
-  return isSafeAccountId(userId)
-    ? userId
-    : ''
-}
-
-function readStoredSession() {
-  const rememberedSession = readJson(
-    localStorage,
-    REMEMBERED_USER_KEY,
-    null,
-  )
-
-  const rememberedUserId =
-    extractSessionUserId(rememberedSession)
-
-  if (rememberedUserId) {
+  if (!snapshot.exists()) {
     return {
-      userId: rememberedUserId,
-      rememberUser: true,
+      name: firebaseUser.displayName || '',
+      email: firebaseUser.email || '',
+      role: 'user',
     }
   }
 
-  const browserSession = readJson(
-    sessionStorage,
-    SESSION_USER_KEY,
-    null,
-  )
-
-  const sessionUserId =
-    extractSessionUserId(browserSession)
-
-  if (sessionUserId) {
-    return {
-      userId: sessionUserId,
-      rememberUser: false,
-    }
-  }
-
-  return null
+  return snapshot.data()
 }
 
-function createSalt() {
-  const salt = new Uint8Array(16)
-  crypto.getRandomValues(salt)
-  return bytesToBase64(salt)
+
+function getFriendlyAuthError(error) {
+  switch (error?.code) {
+    case 'auth/email-already-in-use':
+      return 'This email address is already registered.'
+
+    case 'auth/invalid-email':
+      return 'Please enter a valid email address.'
+
+    case 'auth/weak-password':
+      return 'Please choose a stronger password.'
+
+    case 'auth/invalid-credential':
+    case 'auth/user-not-found':
+    case 'auth/wrong-password':
+      return 'The email or password is incorrect.'
+
+    case 'auth/too-many-requests':
+      return 'Too many attempts. Please wait and try again.'
+
+    case 'auth/network-request-failed':
+      return 'A network error occurred. Please check your connection.'
+
+    default:
+      return 'Authentication failed. Please try again.'
+  }
 }
 
-async function hashPassword(password, salt) {
-  const encoder = new TextEncoder()
-
-  const keyMaterial =
-    await crypto.subtle.importKey(
-      'raw',
-      encoder.encode(password),
-      'PBKDF2',
-      false,
-      ['deriveBits'],
-    )
-
-  const derivedBits =
-    await crypto.subtle.deriveBits(
-      {
-        name: 'PBKDF2',
-        salt: base64ToBytes(salt),
-        iterations: 120000,
-        hash: 'SHA-256',
-      },
-      keyMaterial,
-      256,
-    )
-
-  return bytesToBase64(
-    new Uint8Array(derivedBits),
-  )
-}
-
-function createUserId() {
-  if (
-    typeof crypto.randomUUID === 'function'
-  ) {
-    return crypto.randomUUID()
-  }
-
-  return (
-    `user-${Date.now()}-` +
-    Math.random().toString(16).slice(2)
-  )
-}
-
-const currentUserState = ref(null)
-
-function saveCurrentUser(
-  user,
-  rememberUser,
-) {
-  const safeUser = publicUser(user)
-  const sessionValue = {
-    userId: safeUser.id,
-  }
-
-  localStorage.removeItem(
-    REMEMBERED_USER_KEY,
-  )
-  sessionStorage.removeItem(
-    SESSION_USER_KEY,
-  )
-
-  const selectedStorage = rememberUser
-    ? localStorage
-    : sessionStorage
-
-  const selectedKey = rememberUser
-    ? REMEMBERED_USER_KEY
-    : SESSION_USER_KEY
-
-  if (
-    !writeJson(
-      selectedStorage,
-      selectedKey,
-      sessionValue,
-    )
-  ) {
-    return false
-  }
-
-  currentUserState.value = safeUser
-  return true
-}
-
-function initialiseAccounts() {
-  let users = readUsers()
-
-  for (const seedAccount of seedAccounts) {
-    const accountExists = users.some(
-      (user) => {
-        return (
-          user.id === seedAccount.id &&
-          user.email === seedAccount.email
-        )
-      },
-    )
-
-    if (accountExists) {
-      continue
-    }
-
-    users = users.filter((user) => {
-      return (
-        user.id !== seedAccount.id &&
-        user.email !== seedAccount.email
-      )
-    })
-
-    users.push({
-      ...seedAccount,
-    })
-  }
-
-  writeJson(
-    localStorage,
-    USERS_STORAGE_KEY,
-    users,
-  )
-
-  const storedSession = readStoredSession()
-
-  if (!storedSession) {
-    currentUserState.value = null
-    return users
-  }
-
-  const matchingUser = users.find(
-    (user) => {
-      return user.id === storedSession.userId
-    },
-  )
-
-  if (!matchingUser) {
-    logout()
-    return users
-  }
-
-  saveCurrentUser(
-    matchingUser,
-    storedSession.rememberUser,
-  )
-
-  return users
-}
-
-const authReady = Promise.resolve().then(
-  initialiseAccounts,
-)
 
 async function register({
   name,
   email,
   password,
 }) {
-  await authReady
-
-  const users = readUsers()
   const nameResult =
     validateDisplayName(name)
+
   const safeEmail =
     normaliseEmail(email)
 
@@ -471,91 +181,64 @@ async function register({
     }
   }
 
-  const accountExists = users.some(
-    (user) => {
-      return (
-        normaliseEmail(user.email) ===
-        safeEmail
-      )
-    },
-  )
-
-  if (accountExists) {
-    return {
-      success: false,
-      message:
-        'This email address is already registered.',
-    }
-  }
-
-  let passwordSalt
-  let passwordHash
-
   try {
-    passwordSalt = createSalt()
-    passwordHash = await hashPassword(
-      password,
-      passwordSalt,
+    // Registration uses session persistence by default.
+    await setPersistence(
+      auth,
+      browserSessionPersistence,
     )
-  } catch {
-    return {
-      success: false,
-      message:
-        'Your account could not be secured. Please try again.',
+
+    const credential =
+      await createUserWithEmailAndPassword(
+        auth,
+        safeEmail,
+        password,
+      )
+
+    const firebaseUser =
+      credential.user
+
+    const profile = {
+      name: nameResult.value,
+      email: safeEmail,
+      role: 'user',
+      createdAt: serverTimestamp(),
     }
-  }
 
-  const newUser = {
-    id: createUserId(),
-    name: nameResult.value,
-    email: safeEmail,
-    role: 'user',
-    passwordSalt,
-    passwordHash,
-    createdAt: new Date().toISOString(),
-  }
-
-  const updatedUsers = [
-    ...users,
-    newUser,
-  ]
-
-  if (
-    !writeJson(
-      localStorage,
-      USERS_STORAGE_KEY,
-      updatedUsers,
+    await setDoc(
+      doc(
+        db,
+        'users',
+        firebaseUser.uid,
+      ),
+      profile,
     )
-  ) {
+
+    currentUserState.value =
+      publicUser(
+        firebaseUser,
+        profile,
+      )
+
+    return {
+      success: true,
+      user: currentUserState.value,
+    }
+  } catch (error) {
     return {
       success: false,
       message:
-        'Your account could not be saved. Please try again.',
+        getFriendlyAuthError(error),
     }
-  }
-
-  if (!saveCurrentUser(newUser, false)) {
-    return {
-      success: false,
-      message:
-        'Your account was created, but sign in was unsuccessful.',
-    }
-  }
-
-  return {
-    success: true,
-    user: publicUser(newUser),
   }
 }
+
 
 async function login({
   email,
   password,
   rememberUser,
 }) {
-  await authReady
-
-  const users = readUsers()
   const safeEmail =
     normaliseEmail(email)
 
@@ -572,94 +255,120 @@ async function login({
     }
   }
 
-  const matchingUser = users.find(
-    (user) => {
-      return (
-        normaliseEmail(user.email) ===
-        safeEmail
-      )
-    },
-  )
+  try {
+    await setPersistence(
+      auth,
+      rememberUser
+        ? browserLocalPersistence
+        : browserSessionPersistence,
+    )
 
-  if (!matchingUser) {
+    const credential =
+      await signInWithEmailAndPassword(
+        auth,
+        safeEmail,
+        password,
+      )
+
+    const profile =
+      await loadUserProfile(
+        credential.user,
+      )
+
+    currentUserState.value =
+      publicUser(
+        credential.user,
+        profile,
+      )
+
+    return {
+      success: true,
+      user: currentUserState.value,
+    }
+  } catch (error) {
     return {
       success: false,
       message:
-        'The email or password is incorrect.',
+        getFriendlyAuthError(error),
     }
   }
+}
 
-  let enteredPasswordHash
+
+async function logout() {
+  currentUserState.value = null
 
   try {
-    enteredPasswordHash =
-      await hashPassword(
-        password,
-        matchingUser.passwordSalt,
-      )
+    await signOut(auth)
   } catch {
-    return {
-      success: false,
-      message:
-        'The email or password is incorrect.',
-    }
-  }
-
-  if (
-    enteredPasswordHash !==
-    matchingUser.passwordHash
-  ) {
-    return {
-      success: false,
-      message:
-        'The email or password is incorrect.',
-    }
-  }
-
-  if (
-    !saveCurrentUser(
-      matchingUser,
-      Boolean(rememberUser),
-    )
-  ) {
-    return {
-      success: false,
-      message:
-        'Your session could not be saved. Please try again.',
-    }
-  }
-
-  return {
-    success: true,
-    user: publicUser(matchingUser),
+    // UI state is already cleared.
   }
 }
 
-function logout() {
-  localStorage.removeItem(
-    REMEMBERED_USER_KEY,
-  )
-  sessionStorage.removeItem(
-    SESSION_USER_KEY,
-  )
 
-  currentUserState.value = null
-}
+let resolveAuthReady
+
+const authReady =
+  new Promise((resolve) => {
+    resolveAuthReady = resolve
+  })
+
+
+let initialAuthResolved = false
+
+
+onAuthStateChanged(
+  auth,
+  async (firebaseUser) => {
+    try {
+      if (!firebaseUser) {
+        currentUserState.value = null
+      } else {
+        const profile =
+          await loadUserProfile(
+            firebaseUser,
+          )
+
+        currentUserState.value =
+          publicUser(
+            firebaseUser,
+            profile,
+          )
+      }
+    } catch {
+      currentUserState.value = null
+    } finally {
+      if (!initialAuthResolved) {
+        initialAuthResolved = true
+        resolveAuthReady()
+      }
+    }
+  },
+)
+
 
 export function useAuth() {
   return {
     authReady,
+
     currentUser:
       readonly(currentUserState),
-    isAuthenticated: computed(() => {
-      return Boolean(currentUserState.value)
-    }),
-    isAdmin: computed(() => {
-      return (
-        currentUserState.value?.role ===
-        'admin'
-      )
-    }),
+
+    isAuthenticated:
+      computed(() => {
+        return Boolean(
+          currentUserState.value,
+        )
+      }),
+
+    isAdmin:
+      computed(() => {
+        return (
+          currentUserState.value?.role ===
+          'admin'
+        )
+      }),
+
     login,
     logout,
     register,

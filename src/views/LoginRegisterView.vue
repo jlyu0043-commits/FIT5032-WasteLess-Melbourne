@@ -1,6 +1,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
+
 import {
   isStrongPassword,
   isValidEmail,
@@ -9,6 +10,7 @@ import {
 
 const route = useRoute()
 const router = useRouter()
+
 const { login, register } = useAuth()
 
 const loginEmail = ref('')
@@ -119,7 +121,8 @@ async function registerUser() {
   }
 
   if (
-    registerPassword.value !== confirmPassword.value
+    registerPassword.value !==
+    confirmPassword.value
   ) {
     confirmPasswordError.value =
       'Passwords do not match.'
@@ -146,6 +149,7 @@ async function registerUser() {
 
     registerSuccess.value =
       'Account created successfully.'
+
     registerPassword.value = ''
     confirmPassword.value = ''
 
@@ -258,10 +262,6 @@ async function registerUser() {
 
                     <span>Remember me</span>
                   </label>
-
-                  <span class="login-note">
-                    Client-side account demo
-                  </span>
                 </div>
 
                 <button
@@ -624,8 +624,6 @@ async function registerUser() {
   margin: 4px 0 20px;
   display: flex;
   align-items: center;
-  justify-content: space-between;
-  gap: 15px;
 }
 
 .remember-option {
@@ -641,13 +639,11 @@ async function registerUser() {
   accent-color: #438c2b;
 }
 
-.login-options a,
 .register-link a {
   color: #438c2b;
   text-decoration: none;
 }
 
-.login-options a:hover,
 .register-link a:hover {
   color: #2f6f1f;
 }
