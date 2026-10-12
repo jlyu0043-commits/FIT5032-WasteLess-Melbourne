@@ -1,4 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
+
 import HomeView from '../views/HomeView.vue'
 import SearchResultsView from '../views/SearchResultsView.vue'
 import ItemDetailsView from '../views/ItemDetailsView.vue'
@@ -9,6 +10,8 @@ import LocationDetailsView from '../views/LocationDetailsView.vue'
 import LoginRegisterView from '../views/LoginRegisterView.vue'
 import MyAccountView from '../views/MyAccountView.vue'
 import AdminDashboardView from '../views/AdminDashboardView.vue'
+import ContactView from '../views/ContactView.vue'
+
 import { useAuth } from '../services/authService'
 
 const router = createRouter({
@@ -49,6 +52,11 @@ const router = createRouter({
       path: '/locations/:id',
       name: 'location-details',
       component: LocationDetailsView,
+    },
+    {
+      path: '/contact',
+      name: 'contact',
+      component: ContactView,
     },
     {
       path: '/login',

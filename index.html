@@ -14,11 +14,12 @@
         connect-src 'self' ws: wss:
           https://identitytoolkit.googleapis.com
           https://securetoken.googleapis.com
-          https://firestore.googleapis.com;
+          https://firestore.googleapis.com
+          https://formsubmit.co;
         frame-src 'self' https://www.openstreetmap.org;
         object-src 'none';
         base-uri 'self';
-        form-action 'self';
+        form-action 'self' https://formsubmit.co;
       "
     >
 
@@ -32,7 +33,10 @@
       content="width=device-width, initial-scale=1.0"
     >
 
-    <link rel="icon" href="/favicon.ico">
+    <link
+      rel="icon"
+      href="/favicon.ico"
+    >
 
     <title>WasteLess Melbourne</title>
   </head>
