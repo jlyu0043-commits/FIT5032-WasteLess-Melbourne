@@ -5,12 +5,17 @@ import {
   watch,
 } from 'vue'
 
+import { jsPDF } from 'jspdf'
+import { autoTable } from 'jspdf-autotable'
+
 const ROWS_PER_PAGE = 10
 
 /*
- * D.3 Test Data - Waste Items
- * 15 rows are included so pagination can be demonstrated.
+ * =========================================================
+ * TEST / APPLICATION DATA
+ * =========================================================
  */
+
 const wasteItems = [
   {
     id: 1,
@@ -119,10 +124,6 @@ const wasteItems = [
   },
 ]
 
-/*
- * D.3 Test Data - Recycling Locations
- * 15 rows are included so pagination can be demonstrated.
- */
 const recyclingLocations = [
   {
     id: 1,
@@ -246,6 +247,12 @@ const recyclingLocations = [
   },
 ]
 
+/*
+ * =========================================================
+ * TABLE 1 STATE
+ * =========================================================
+ */
+
 const wasteGlobalSearch = ref('')
 const wasteCurrentPage = ref(1)
 const wasteSortKey = ref('id')
@@ -258,6 +265,12 @@ const wasteFilters = ref({
   disposal: '',
   status: '',
 })
+
+/*
+ * =========================================================
+ * TABLE 2 STATE
+ * =========================================================
+ */
 
 const locationGlobalSearch = ref('')
 const locationCurrentPage = ref(1)
@@ -272,6 +285,20 @@ const locationFilters = ref({
   accepts: '',
   status: '',
 })
+
+/*
+ * =========================================================
+ * EXPORT STATE
+ * =========================================================
+ */
+
+const exportStatus = ref('')
+
+/*
+ * =========================================================
+ * SUMMARY CARDS
+ * =========================================================
+ */
 
 const summaryCards = computed(() => [
   {
@@ -288,11 +315,17 @@ const summaryCards = computed(() => [
   },
   {
     id: 3,
-    label: 'Rows Per Page',
-    value: ROWS_PER_PAGE,
-    icon: '📋',
+    label: 'Export Formats',
+    value: 2,
+    icon: '📤',
   },
 ])
+
+/*
+ * =========================================================
+ * GENERIC TABLE UTILITIES
+ * =========================================================
+ */
 
 function normalize(value) {
   return String(value ?? '')
@@ -300,239 +333,345 @@ function normalize(value) {
     .trim()
 }
 
-function matchesGlobalSearch(row, searchValue) {
-  const search = normalize(searchValue)
+function matchesGlobalSearch(
+  row,
+  searchValue,
+) {
+  const search =
+    normalize(searchValue)
 
   if (!search) {
     return true
   }
 
-  return Object.values(row).some((value) =>
-    normalize(value).includes(search),
+  return Object.values(row).some(
+    (value) =>
+      normalize(value).includes(
+        search,
+      ),
   )
 }
 
-function matchesColumnFilters(row, filters) {
-  return Object.entries(filters).every(
+function matchesColumnFilters(
+  row,
+  filters,
+) {
+  return Object.entries(
+    filters,
+  ).every(
     ([key, filterValue]) => {
-      const search = normalize(filterValue)
+      const search =
+        normalize(filterValue)
 
       if (!search) {
         return true
       }
 
-      return normalize(row[key]).includes(search)
+      return normalize(
+        row[key],
+      ).includes(search)
     },
   )
 }
 
-function sortRows(rows, key, direction) {
-  return [...rows].sort((a, b) => {
-    const first = a[key]
-    const second = b[key]
+function sortRows(
+  rows,
+  key,
+  direction,
+) {
+  return [...rows].sort(
+    (firstRow, secondRow) => {
+      const first =
+        firstRow[key]
 
-    if (
-      typeof first === 'number' &&
-      typeof second === 'number'
-    ) {
+      const second =
+        secondRow[key]
+
+      if (
+        typeof first ===
+          'number' &&
+        typeof second ===
+          'number'
+      ) {
+        return direction === 'asc'
+          ? first - second
+          : second - first
+      }
+
+      const result =
+        String(first).localeCompare(
+          String(second),
+          undefined,
+          {
+            numeric: true,
+            sensitivity: 'base',
+          },
+        )
+
       return direction === 'asc'
-        ? first - second
-        : second - first
-    }
+        ? result
+        : -result
+    },
+  )
+}
 
-    const result = String(first).localeCompare(
-      String(second),
-      undefined,
-      {
-        numeric: true,
-        sensitivity: 'base',
+/*
+ * =========================================================
+ * WASTE ITEMS COMPUTED DATA
+ * =========================================================
+ */
+
+const filteredWasteItems =
+  computed(() => {
+    return wasteItems.filter(
+      (item) => {
+        return (
+          matchesGlobalSearch(
+            item,
+            wasteGlobalSearch.value,
+          ) &&
+          matchesColumnFilters(
+            item,
+            wasteFilters.value,
+          )
+        )
       },
     )
-
-    return direction === 'asc'
-      ? result
-      : -result
   })
-}
 
-const filteredWasteItems = computed(() => {
-  return wasteItems.filter((item) => {
-    return (
-      matchesGlobalSearch(
-        item,
-        wasteGlobalSearch.value,
-      ) &&
-      matchesColumnFilters(
-        item,
-        wasteFilters.value,
-      )
+const sortedWasteItems =
+  computed(() => {
+    return sortRows(
+      filteredWasteItems.value,
+      wasteSortKey.value,
+      wasteSortDirection.value,
     )
   })
-})
 
-const sortedWasteItems = computed(() => {
-  return sortRows(
-    filteredWasteItems.value,
-    wasteSortKey.value,
-    wasteSortDirection.value,
-  )
-})
+const wasteTotalPages =
+  computed(() => {
+    return Math.max(
+      1,
+      Math.ceil(
+        sortedWasteItems.value
+          .length /
+          ROWS_PER_PAGE,
+      ),
+    )
+  })
 
-const wasteTotalPages = computed(() => {
-  return Math.max(
-    1,
-    Math.ceil(
-      sortedWasteItems.value.length /
+const paginatedWasteItems =
+  computed(() => {
+    const start =
+      (
+        wasteCurrentPage.value -
+        1
+      ) *
+      ROWS_PER_PAGE
+
+    return sortedWasteItems.value.slice(
+      start,
+      start + ROWS_PER_PAGE,
+    )
+  })
+
+const wasteStartRow =
+  computed(() => {
+    if (
+      sortedWasteItems.value
+        .length === 0
+    ) {
+      return 0
+    }
+
+    return (
+      (
+        wasteCurrentPage.value -
+        1
+      ) *
+        ROWS_PER_PAGE +
+      1
+    )
+  })
+
+const wasteEndRow =
+  computed(() => {
+    return Math.min(
+      wasteCurrentPage.value *
         ROWS_PER_PAGE,
-    ),
-  )
-})
+      sortedWasteItems.value
+        .length,
+    )
+  })
 
-const paginatedWasteItems = computed(() => {
-  const start =
-    (wasteCurrentPage.value - 1) *
-    ROWS_PER_PAGE
+/*
+ * =========================================================
+ * LOCATION COMPUTED DATA
+ * =========================================================
+ */
 
-  return sortedWasteItems.value.slice(
-    start,
-    start + ROWS_PER_PAGE,
-  )
-})
-
-const wasteStartRow = computed(() => {
-  if (sortedWasteItems.value.length === 0) {
-    return 0
-  }
-
-  return (
-    (wasteCurrentPage.value - 1) *
-      ROWS_PER_PAGE +
-    1
-  )
-})
-
-const wasteEndRow = computed(() => {
-  return Math.min(
-    wasteCurrentPage.value *
-      ROWS_PER_PAGE,
-    sortedWasteItems.value.length,
-  )
-})
-
-const filteredLocations = computed(() => {
-  return recyclingLocations.filter(
-    (location) => {
-      return (
-        matchesGlobalSearch(
-          location,
-          locationGlobalSearch.value,
-        ) &&
-        matchesColumnFilters(
-          location,
-          locationFilters.value,
+const filteredLocations =
+  computed(() => {
+    return recyclingLocations.filter(
+      (location) => {
+        return (
+          matchesGlobalSearch(
+            location,
+            locationGlobalSearch.value,
+          ) &&
+          matchesColumnFilters(
+            location,
+            locationFilters.value,
+          )
         )
-      )
-    },
-  )
-})
+      },
+    )
+  })
 
-const sortedLocations = computed(() => {
-  return sortRows(
-    filteredLocations.value,
-    locationSortKey.value,
-    locationSortDirection.value,
-  )
-})
+const sortedLocations =
+  computed(() => {
+    return sortRows(
+      filteredLocations.value,
+      locationSortKey.value,
+      locationSortDirection.value,
+    )
+  })
 
-const locationTotalPages = computed(() => {
-  return Math.max(
-    1,
-    Math.ceil(
-      sortedLocations.value.length /
+const locationTotalPages =
+  computed(() => {
+    return Math.max(
+      1,
+      Math.ceil(
+        sortedLocations.value
+          .length /
+          ROWS_PER_PAGE,
+      ),
+    )
+  })
+
+const paginatedLocations =
+  computed(() => {
+    const start =
+      (
+        locationCurrentPage.value -
+        1
+      ) *
+      ROWS_PER_PAGE
+
+    return sortedLocations.value.slice(
+      start,
+      start + ROWS_PER_PAGE,
+    )
+  })
+
+const locationStartRow =
+  computed(() => {
+    if (
+      sortedLocations.value
+        .length === 0
+    ) {
+      return 0
+    }
+
+    return (
+      (
+        locationCurrentPage.value -
+        1
+      ) *
+        ROWS_PER_PAGE +
+      1
+    )
+  })
+
+const locationEndRow =
+  computed(() => {
+    return Math.min(
+      locationCurrentPage.value *
         ROWS_PER_PAGE,
-    ),
-  )
-})
+      sortedLocations.value
+        .length,
+    )
+  })
 
-const paginatedLocations = computed(() => {
-  const start =
-    (locationCurrentPage.value - 1) *
-    ROWS_PER_PAGE
-
-  return sortedLocations.value.slice(
-    start,
-    start + ROWS_PER_PAGE,
-  )
-})
-
-const locationStartRow = computed(() => {
-  if (sortedLocations.value.length === 0) {
-    return 0
-  }
-
-  return (
-    (locationCurrentPage.value - 1) *
-      ROWS_PER_PAGE +
-    1
-  )
-})
-
-const locationEndRow = computed(() => {
-  return Math.min(
-    locationCurrentPage.value *
-      ROWS_PER_PAGE,
-    sortedLocations.value.length,
-  )
-})
+/*
+ * =========================================================
+ * SORTING
+ * =========================================================
+ */
 
 function sortWasteTable(key) {
-  if (wasteSortKey.value === key) {
+  if (
+    wasteSortKey.value === key
+  ) {
     wasteSortDirection.value =
-      wasteSortDirection.value === 'asc'
+      wasteSortDirection.value ===
+      'asc'
         ? 'desc'
         : 'asc'
   } else {
     wasteSortKey.value = key
-    wasteSortDirection.value = 'asc'
+    wasteSortDirection.value =
+      'asc'
   }
 
   wasteCurrentPage.value = 1
 }
 
 function sortLocationTable(key) {
-  if (locationSortKey.value === key) {
+  if (
+    locationSortKey.value ===
+    key
+  ) {
     locationSortDirection.value =
-      locationSortDirection.value === 'asc'
+      locationSortDirection.value ===
+      'asc'
         ? 'desc'
         : 'asc'
   } else {
     locationSortKey.value = key
-    locationSortDirection.value = 'asc'
+    locationSortDirection.value =
+      'asc'
   }
 
   locationCurrentPage.value = 1
 }
 
-function getWasteSortIndicator(key) {
-  if (wasteSortKey.value !== key) {
+function getWasteSortIndicator(
+  key,
+) {
+  if (
+    wasteSortKey.value !== key
+  ) {
     return '↕'
   }
 
-  return wasteSortDirection.value === 'asc'
-    ? '↑'
-    : '↓'
-}
-
-function getLocationSortIndicator(key) {
-  if (locationSortKey.value !== key) {
-    return '↕'
-  }
-
-  return locationSortDirection.value ===
+  return wasteSortDirection.value ===
     'asc'
     ? '↑'
     : '↓'
 }
+
+function getLocationSortIndicator(
+  key,
+) {
+  if (
+    locationSortKey.value !==
+    key
+  ) {
+    return '↕'
+  }
+
+  return locationSortDirection
+    .value === 'asc'
+    ? '↑'
+    : '↓'
+}
+
+/*
+ * =========================================================
+ * RESET FILTERS
+ * =========================================================
+ */
 
 function resetWasteFilters() {
   wasteGlobalSearch.value = ''
@@ -546,12 +685,15 @@ function resetWasteFilters() {
   }
 
   wasteSortKey.value = 'id'
-  wasteSortDirection.value = 'asc'
+  wasteSortDirection.value =
+    'asc'
+
   wasteCurrentPage.value = 1
 }
 
 function resetLocationFilters() {
-  locationGlobalSearch.value = ''
+  locationGlobalSearch.value =
+    ''
 
   locationFilters.value = {
     id: '',
@@ -563,36 +705,413 @@ function resetLocationFilters() {
   }
 
   locationSortKey.value = 'id'
-  locationSortDirection.value = 'asc'
+
+  locationSortDirection.value =
+    'asc'
+
   locationCurrentPage.value = 1
 }
+
+/*
+ * =========================================================
+ * PAGINATION
+ * =========================================================
+ */
 
 function goToWastePage(page) {
   if (
     page >= 1 &&
     page <= wasteTotalPages.value
   ) {
-    wasteCurrentPage.value = page
+    wasteCurrentPage.value =
+      page
   }
 }
 
 function goToLocationPage(page) {
   if (
     page >= 1 &&
-    page <= locationTotalPages.value
+    page <=
+      locationTotalPages.value
   ) {
-    locationCurrentPage.value = page
+    locationCurrentPage.value =
+      page
   }
 }
+
+/*
+ * =========================================================
+ * CSV EXPORT
+ * =========================================================
+ */
+
+function safeCsvValue(value) {
+  let text =
+    String(value ?? '')
+
+  /*
+   * Prevent spreadsheet formula injection
+   * when a CSV is opened in spreadsheet
+   * software.
+   */
+  if (
+    /^[=+\-@]/.test(text)
+  ) {
+    text = `'${text}`
+  }
+
+  return `"${text.replace(
+    /"/g,
+    '""',
+  )}"`
+}
+
+function createCsv(
+  headers,
+  rows,
+) {
+  const headerLine =
+    headers
+      .map((header) =>
+        safeCsvValue(header),
+      )
+      .join(',')
+
+  const dataLines =
+    rows.map((row) =>
+      row
+        .map((value) =>
+          safeCsvValue(value),
+        )
+        .join(','),
+    )
+
+  return [
+    headerLine,
+    ...dataLines,
+  ].join('\r\n')
+}
+
+function downloadCsv(
+  csvContent,
+  fileName,
+) {
+  const utf8Bom = '\uFEFF'
+
+  const blob =
+    new Blob(
+      [
+        utf8Bom,
+        csvContent,
+      ],
+      {
+        type:
+          'text/csv;charset=utf-8;',
+      },
+    )
+
+  const url =
+    URL.createObjectURL(blob)
+
+  const link =
+    document.createElement('a')
+
+  link.href = url
+  link.download = fileName
+
+  document.body.appendChild(
+    link,
+  )
+
+  link.click()
+
+  document.body.removeChild(
+    link,
+  )
+
+  URL.revokeObjectURL(url)
+}
+
+function getDateStamp() {
+  return new Date()
+    .toISOString()
+    .slice(0, 10)
+}
+
+function exportWasteCsv() {
+  if (
+    sortedWasteItems.value
+      .length === 0
+  ) {
+    return
+  }
+
+  const csv =
+    createCsv(
+      [
+        'ID',
+        'Item Name',
+        'Category',
+        'Disposal Method',
+        'Status',
+      ],
+
+      sortedWasteItems.value.map(
+        (item) => [
+          item.id,
+          item.name,
+          item.category,
+          item.disposal,
+          item.status,
+        ],
+      ),
+    )
+
+  downloadCsv(
+    csv,
+    `wasteless-waste-items-${getDateStamp()}.csv`,
+  )
+
+  exportStatus.value =
+    `${sortedWasteItems.value.length} waste item records exported to CSV.`
+}
+
+function exportLocationCsv() {
+  if (
+    sortedLocations.value
+      .length === 0
+  ) {
+    return
+  }
+
+  const csv =
+    createCsv(
+      [
+        'ID',
+        'Location Name',
+        'Suburb',
+        'Postcode',
+        'Accepted Items',
+        'Status',
+      ],
+
+      sortedLocations.value.map(
+        (location) => [
+          location.id,
+          location.name,
+          location.suburb,
+          location.postcode,
+          location.accepts,
+          location.status,
+        ],
+      ),
+    )
+
+  downloadCsv(
+    csv,
+    `wasteless-recycling-locations-${getDateStamp()}.csv`,
+  )
+
+  exportStatus.value =
+    `${sortedLocations.value.length} recycling location records exported to CSV.`
+}
+
+/*
+ * =========================================================
+ * PDF EXPORT
+ * =========================================================
+ */
+
+function addPdfHeader(
+  document,
+  title,
+  recordCount,
+) {
+  document.setFontSize(18)
+
+  document.text(
+    'WasteLess Melbourne',
+    14,
+    16,
+  )
+
+  document.setFontSize(13)
+
+  document.text(
+    title,
+    14,
+    24,
+  )
+
+  document.setFontSize(9)
+
+  document.text(
+    `Exported: ${new Date().toLocaleString()}`,
+    14,
+    31,
+  )
+
+  document.text(
+    `Records: ${recordCount}`,
+    14,
+    36,
+  )
+}
+
+function exportWastePdf() {
+  if (
+    sortedWasteItems.value
+      .length === 0
+  ) {
+    return
+  }
+
+  const document =
+    new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'a4',
+    })
+
+  addPdfHeader(
+    document,
+    'Waste Items Report',
+    sortedWasteItems.value
+      .length,
+  )
+
+  autoTable(
+    document,
+    {
+      startY: 43,
+
+      head: [
+        [
+          'ID',
+          'Item Name',
+          'Category',
+          'Disposal Method',
+          'Status',
+        ],
+      ],
+
+      body:
+        sortedWasteItems.value.map(
+          (item) => [
+            item.id,
+            item.name,
+            item.category,
+            item.disposal,
+            item.status,
+          ],
+        ),
+
+      styles: {
+        fontSize: 9,
+        cellPadding: 3,
+      },
+
+      margin: {
+        left: 14,
+        right: 14,
+      },
+    },
+  )
+
+  document.save(
+    `wasteless-waste-items-${getDateStamp()}.pdf`,
+  )
+
+  exportStatus.value =
+    `${sortedWasteItems.value.length} waste item records exported to PDF.`
+}
+
+function exportLocationPdf() {
+  if (
+    sortedLocations.value
+      .length === 0
+  ) {
+    return
+  }
+
+  const document =
+    new jsPDF({
+      orientation: 'landscape',
+      unit: 'mm',
+      format: 'a4',
+    })
+
+  addPdfHeader(
+    document,
+    'Recycling Locations Report',
+    sortedLocations.value
+      .length,
+  )
+
+  autoTable(
+    document,
+    {
+      startY: 43,
+
+      head: [
+        [
+          'ID',
+          'Location Name',
+          'Suburb',
+          'Postcode',
+          'Accepted Items',
+          'Status',
+        ],
+      ],
+
+      body:
+        sortedLocations.value.map(
+          (location) => [
+            location.id,
+            location.name,
+            location.suburb,
+            location.postcode,
+            location.accepts,
+            location.status,
+          ],
+        ),
+
+      styles: {
+        fontSize: 8,
+        cellPadding: 3,
+      },
+
+      margin: {
+        left: 14,
+        right: 14,
+      },
+    },
+  )
+
+  document.save(
+    `wasteless-recycling-locations-${getDateStamp()}.pdf`,
+  )
+
+  exportStatus.value =
+    `${sortedLocations.value.length} recycling location records exported to PDF.`
+}
+
+/*
+ * =========================================================
+ * WATCHERS
+ * =========================================================
+ */
 
 watch(
   [
     wasteGlobalSearch,
     wasteFilters,
   ],
+
   () => {
     wasteCurrentPage.value = 1
   },
+
   {
     deep: true,
   },
@@ -603,9 +1122,11 @@ watch(
     locationGlobalSearch,
     locationFilters,
   ],
+
   () => {
     locationCurrentPage.value = 1
   },
+
   {
     deep: true,
   },
@@ -613,6 +1134,7 @@ watch(
 
 watch(
   wasteTotalPages,
+
   (totalPages) => {
     if (
       wasteCurrentPage.value >
@@ -626,6 +1148,7 @@ watch(
 
 watch(
   locationTotalPages,
+
   (totalPages) => {
     if (
       locationCurrentPage.value >
@@ -646,11 +1169,13 @@ watch(
           Administration
         </p>
 
-        <h1>Admin Dashboard</h1>
+        <h1>
+          Admin Dashboard
+        </h1>
 
         <p class="hero-description">
-          Search, sort and review WasteLess Melbourne
-          application data.
+          Search, sort, filter and export
+          WasteLess Melbourne application data.
         </p>
       </div>
     </section>
@@ -672,14 +1197,31 @@ watch(
               </div>
 
               <div>
-                <p>{{ card.label }}</p>
-                <strong>{{ card.value }}</strong>
+                <p>
+                  {{ card.label }}
+                </p>
+
+                <strong>
+                  {{ card.value }}
+                </strong>
               </div>
             </article>
           </div>
         </div>
 
-        <!-- TABLE 1 -->
+        <p
+          v-if="exportStatus"
+          class="export-status"
+          role="status"
+          aria-live="polite"
+        >
+          {{ exportStatus }}
+        </p>
+
+        <!-- =================================================
+             INTERACTIVE TABLE 1
+             ================================================= -->
+
         <section
           class="table-panel"
           aria-labelledby="waste-table-heading"
@@ -695,18 +1237,50 @@ watch(
               </h2>
 
               <p>
-                Search, filter and sort waste
-                information.
+                Search, filter, sort and export
+                waste information.
               </p>
             </div>
 
-            <button
-              type="button"
-              class="reset-button"
-              @click="resetWasteFilters"
-            >
-              Reset filters
-            </button>
+            <div class="table-actions">
+              <button
+                type="button"
+                class="export-button"
+                :disabled="
+                  sortedWasteItems.length ===
+                  0
+                "
+                @click="exportWasteCsv"
+              >
+                Export CSV
+              </button>
+
+              <button
+                type="button"
+                class="export-button"
+                :disabled="
+                  sortedWasteItems.length ===
+                  0
+                "
+                @click="exportWastePdf"
+              >
+                Export PDF
+              </button>
+
+              <button
+                type="button"
+                class="reset-button"
+                @click="resetWasteFilters"
+              >
+                Reset filters
+              </button>
+            </div>
+          </div>
+
+          <div class="export-explanation">
+            CSV and PDF exports include all
+            currently filtered results, not only
+            the current page.
           </div>
 
           <div class="global-search">
@@ -734,9 +1308,14 @@ watch(
                     <button
                       type="button"
                       class="sort-button"
-                      @click="sortWasteTable('id')"
+                      @click="
+                        sortWasteTable(
+                          'id',
+                        )
+                      "
                     >
                       ID
+
                       <span aria-hidden="true">
                         {{
                           getWasteSortIndicator(
@@ -752,10 +1331,13 @@ watch(
                       type="button"
                       class="sort-button"
                       @click="
-                        sortWasteTable('name')
+                        sortWasteTable(
+                          'name',
+                        )
                       "
                     >
                       Item Name
+
                       <span aria-hidden="true">
                         {{
                           getWasteSortIndicator(
@@ -777,6 +1359,7 @@ watch(
                       "
                     >
                       Category
+
                       <span aria-hidden="true">
                         {{
                           getWasteSortIndicator(
@@ -798,6 +1381,7 @@ watch(
                       "
                     >
                       Disposal Method
+
                       <span aria-hidden="true">
                         {{
                           getWasteSortIndicator(
@@ -819,6 +1403,7 @@ watch(
                       "
                     >
                       Status
+
                       <span aria-hidden="true">
                         {{
                           getWasteSortIndicator(
@@ -925,10 +1510,15 @@ watch(
 
               <tbody>
                 <tr
-                  v-for="item in paginatedWasteItems"
+                  v-for="
+                    item in
+                      paginatedWasteItems
+                  "
                   :key="item.id"
                 >
-                  <td>{{ item.id }}</td>
+                  <td>
+                    {{ item.id }}
+                  </td>
 
                   <td>
                     <strong>
@@ -936,9 +1526,13 @@ watch(
                     </strong>
                   </td>
 
-                  <td>{{ item.category }}</td>
+                  <td>
+                    {{ item.category }}
+                  </td>
 
-                  <td>{{ item.disposal }}</td>
+                  <td>
+                    {{ item.disposal }}
+                  </td>
 
                   <td>
                     <span
@@ -956,8 +1550,8 @@ watch(
 
                 <tr
                   v-if="
-                    paginatedWasteItems.length ===
-                    0
+                    paginatedWasteItems
+                      .length === 0
                   "
                 >
                   <td
@@ -975,7 +1569,9 @@ watch(
           <div class="table-footer">
             <p>
               Showing
-              {{ wasteStartRow }}–{{ wasteEndRow }}
+              {{ wasteStartRow }}–{{
+                wasteEndRow
+              }}
               of
               {{ sortedWasteItems.length }}
               results
@@ -1000,7 +1596,9 @@ watch(
               </button>
 
               <button
-                v-for="page in wasteTotalPages"
+                v-for="
+                  page in wasteTotalPages
+                "
                 :key="page"
                 type="button"
                 class="page-button"
@@ -1014,7 +1612,9 @@ watch(
                     ? 'page'
                     : undefined
                 "
-                @click="goToWastePage(page)"
+                @click="
+                  goToWastePage(page)
+                "
               >
                 {{ page }}
               </button>
@@ -1037,7 +1637,10 @@ watch(
           </div>
         </section>
 
-        <!-- TABLE 2 -->
+        <!-- =================================================
+             INTERACTIVE TABLE 2
+             ================================================= -->
+
         <section
           class="table-panel"
           aria-labelledby="location-table-heading"
@@ -1053,18 +1656,56 @@ watch(
               </h2>
 
               <p>
-                Search, filter and sort recycling
-                location data.
+                Search, filter, sort and export
+                recycling location data.
               </p>
             </div>
 
-            <button
-              type="button"
-              class="reset-button"
-              @click="resetLocationFilters"
-            >
-              Reset filters
-            </button>
+            <div class="table-actions">
+              <button
+                type="button"
+                class="export-button"
+                :disabled="
+                  sortedLocations.length ===
+                  0
+                "
+                @click="
+                  exportLocationCsv
+                "
+              >
+                Export CSV
+              </button>
+
+              <button
+                type="button"
+                class="export-button"
+                :disabled="
+                  sortedLocations.length ===
+                  0
+                "
+                @click="
+                  exportLocationPdf
+                "
+              >
+                Export PDF
+              </button>
+
+              <button
+                type="button"
+                class="reset-button"
+                @click="
+                  resetLocationFilters
+                "
+              >
+                Reset filters
+              </button>
+            </div>
+          </div>
+
+          <div class="export-explanation">
+            CSV and PDF exports include all
+            currently filtered results, not only
+            the current page.
           </div>
 
           <div class="global-search">
@@ -1077,7 +1718,9 @@ watch(
 
             <input
               id="location-global-search"
-              v-model="locationGlobalSearch"
+              v-model="
+                locationGlobalSearch
+              "
               type="search"
               placeholder="Search all columns..."
             />
@@ -1097,10 +1740,13 @@ watch(
                       type="button"
                       class="sort-button"
                       @click="
-                        sortLocationTable('id')
+                        sortLocationTable(
+                          'id',
+                        )
                       "
                     >
                       ID
+
                       <span aria-hidden="true">
                         {{
                           getLocationSortIndicator(
@@ -1122,6 +1768,7 @@ watch(
                       "
                     >
                       Location Name
+
                       <span aria-hidden="true">
                         {{
                           getLocationSortIndicator(
@@ -1143,6 +1790,7 @@ watch(
                       "
                     >
                       Suburb
+
                       <span aria-hidden="true">
                         {{
                           getLocationSortIndicator(
@@ -1164,6 +1812,7 @@ watch(
                       "
                     >
                       Postcode
+
                       <span aria-hidden="true">
                         {{
                           getLocationSortIndicator(
@@ -1185,6 +1834,7 @@ watch(
                       "
                     >
                       Accepted Items
+
                       <span aria-hidden="true">
                         {{
                           getLocationSortIndicator(
@@ -1206,6 +1856,7 @@ watch(
                       "
                     >
                       Status
+
                       <span aria-hidden="true">
                         {{
                           getLocationSortIndicator(
@@ -1331,11 +1982,14 @@ watch(
               <tbody>
                 <tr
                   v-for="
-                    location in paginatedLocations
+                    location in
+                      paginatedLocations
                   "
                   :key="location.id"
                 >
-                  <td>{{ location.id }}</td>
+                  <td>
+                    {{ location.id }}
+                  </td>
 
                   <td>
                     <strong>
@@ -1343,11 +1997,17 @@ watch(
                     </strong>
                   </td>
 
-                  <td>{{ location.suburb }}</td>
+                  <td>
+                    {{ location.suburb }}
+                  </td>
 
-                  <td>{{ location.postcode }}</td>
+                  <td>
+                    {{ location.postcode }}
+                  </td>
 
-                  <td>{{ location.accepts }}</td>
+                  <td>
+                    {{ location.accepts }}
+                  </td>
 
                   <td>
                     <span
@@ -1365,8 +2025,8 @@ watch(
 
                 <tr
                   v-if="
-                    paginatedLocations.length ===
-                    0
+                    paginatedLocations
+                      .length === 0
                   "
                 >
                   <td
@@ -1399,11 +2059,13 @@ watch(
               <button
                 type="button"
                 :disabled="
-                  locationCurrentPage === 1
+                  locationCurrentPage ===
+                  1
                 "
                 @click="
                   goToLocationPage(
-                    locationCurrentPage - 1,
+                    locationCurrentPage -
+                      1,
                   )
                 "
               >
@@ -1412,7 +2074,8 @@ watch(
 
               <button
                 v-for="
-                  page in locationTotalPages
+                  page in
+                    locationTotalPages
                 "
                 :key="page"
                 type="button"
@@ -1429,7 +2092,9 @@ watch(
                     : undefined
                 "
                 @click="
-                  goToLocationPage(page)
+                  goToLocationPage(
+                    page,
+                  )
                 "
               >
                 {{ page }}
@@ -1443,7 +2108,8 @@ watch(
                 "
                 @click="
                   goToLocationPage(
-                    locationCurrentPage + 1,
+                    locationCurrentPage +
+                      1,
                   )
                 "
               >
@@ -1460,6 +2126,7 @@ watch(
 <style scoped>
 .dashboard-hero {
   padding: 58px 0 115px;
+
   background:
     linear-gradient(
       135deg,
@@ -1471,29 +2138,43 @@ watch(
 
 .eyebrow {
   margin-bottom: 8px;
+
   color: #438c2b;
+
   font-size: 15px;
   font-weight: 700;
+
   letter-spacing: 0.08em;
   text-transform: uppercase;
 }
 
 .dashboard-hero h1 {
   margin-bottom: 12px;
+
   color: #17202a;
-  font-size: clamp(2.3rem, 5vw, 3.5rem);
+
+  font-size:
+    clamp(
+      2.3rem,
+      5vw,
+      3.5rem
+    );
+
   font-weight: 750;
 }
 
 .hero-description {
   margin: 0;
+
   color: #52606d;
+
   font-size: 19px;
 }
 
 .dashboard-section {
   margin-top: -65px;
   padding-bottom: 70px;
+
   background-color: #f8faf7;
 }
 
@@ -1503,9 +2184,11 @@ watch(
 
 .summary-card,
 .table-panel {
-  background-color: #ffffff;
   border: 1px solid #dfe7dc;
   border-radius: 16px;
+
+  background-color: #ffffff;
+
   box-shadow:
     0 10px 30px
     rgba(31, 58, 30, 0.08);
@@ -1514,31 +2197,53 @@ watch(
 .summary-card {
   min-height: 135px;
   padding: 24px;
+
   display: flex;
   align-items: center;
+
   gap: 20px;
 }
 
 .summary-icon {
   width: 66px;
   height: 66px;
+
   display: flex;
   flex-shrink: 0;
+
   align-items: center;
   justify-content: center;
-  background-color: #edf6e8;
+
   border-radius: 50%;
+
+  background-color: #edf6e8;
+
   font-size: 32px;
 }
 
 .summary-card p {
   margin: 0 0 3px;
+
   color: #64748b;
 }
 
 .summary-card strong {
   color: #17202a;
+
   font-size: 32px;
+}
+
+.export-status {
+  margin: 0 0 22px;
+  padding: 13px 16px;
+
+  border: 1px solid #b9dab0;
+  border-radius: 9px;
+
+  background-color: #edf7e9;
+  color: #2f6f1f;
+
+  font-weight: 650;
 }
 
 .table-panel {
@@ -1547,59 +2252,127 @@ watch(
 }
 
 .table-heading-row {
-  margin-bottom: 24px;
+  margin-bottom: 15px;
+
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
+
   gap: 18px;
 }
 
 .table-number {
   margin-bottom: 5px;
+
   color: #438c2b;
+
   font-size: 13px;
   font-weight: 700;
+
   letter-spacing: 0.06em;
   text-transform: uppercase;
 }
 
 .table-heading-row h2 {
   margin-bottom: 5px;
+
   color: #17202a;
+
   font-size: 27px;
   font-weight: 700;
 }
 
 .table-heading-row p:last-child {
   margin: 0;
+
   color: #64748b;
 }
 
+.table-actions {
+  display: flex;
+  flex-wrap: wrap;
+
+  justify-content: flex-end;
+
+  gap: 8px;
+}
+
+.export-button,
 .reset-button {
   min-height: 42px;
   padding: 9px 15px;
-  flex-shrink: 0;
-  border: 1px solid #438c2b;
+
   border-radius: 8px;
+
+  cursor: pointer;
+
+  font-weight: 650;
+}
+
+.export-button {
+  border: 1px solid #438c2b;
+
+  background-color: #438c2b;
+  color: #ffffff;
+}
+
+.export-button:hover:not(
+    :disabled
+  ) {
+  background-color: #347521;
+}
+
+.export-button:disabled {
+  cursor: not-allowed;
+
+  opacity: 0.45;
+}
+
+.reset-button {
+  border: 1px solid #438c2b;
+
   background-color: #ffffff;
   color: #347521;
-  cursor: pointer;
-  font-weight: 650;
 }
 
 .reset-button:hover {
   background-color: #edf7e9;
 }
 
+.export-button:focus-visible,
+.reset-button:focus-visible {
+  outline:
+    3px solid
+    rgba(67, 140, 43, 0.3);
+
+  outline-offset: 2px;
+}
+
+.export-explanation {
+  margin-bottom: 20px;
+  padding: 10px 12px;
+
+  border-radius: 8px;
+
+  background-color: #f3f7f1;
+
+  color: #64748b;
+
+  font-size: 13px;
+}
+
 .global-search {
   max-width: 520px;
   margin-bottom: 20px;
+
   display: grid;
+
   gap: 7px;
 }
 
 .global-search label {
   color: #334155;
+
   font-size: 14px;
   font-weight: 650;
 }
@@ -1607,30 +2380,38 @@ watch(
 .global-search input,
 .filter-row input {
   width: 100%;
+
   border: 1px solid #c7d2c4;
   border-radius: 7px;
+
   background-color: #ffffff;
   color: #263238;
+
   font: inherit;
 }
 
 .global-search input {
   min-height: 46px;
+
   padding: 10px 13px;
 }
 
 .filter-row input {
   min-width: 110px;
+
   padding: 8px 9px;
+
   font-size: 13px;
 }
 
 .global-search input:focus-visible,
 .filter-row input:focus-visible,
 .sort-button:focus-visible,
-.reset-button:focus-visible,
 .pagination-controls button:focus-visible {
-  outline: 3px solid rgba(67, 140, 43, 0.3);
+  outline:
+    3px solid
+    rgba(67, 140, 43, 0.3);
+
   outline-offset: 2px;
 }
 
@@ -1641,36 +2422,50 @@ watch(
 .interactive-table {
   width: 100%;
   min-width: 930px;
+
   border-collapse: collapse;
 }
 
 .interactive-table th,
 .interactive-table td {
   padding: 13px 12px;
-  border-bottom: 1px solid #e2e8f0;
+
+  border-bottom:
+    1px solid #e2e8f0;
+
   text-align: left;
   vertical-align: middle;
 }
 
-.interactive-table thead tr:first-child {
+.interactive-table
+  thead
+  tr:first-child {
   background-color: #edf6e8;
 }
 
-.interactive-table tbody tr:hover {
+.interactive-table
+  tbody
+  tr:hover {
   background-color: #f8fbf7;
 }
 
 .sort-button {
   width: 100%;
   padding: 3px 0;
+
   display: flex;
   align-items: center;
   justify-content: space-between;
+
   gap: 8px;
+
   border: none;
+
   background: transparent;
   color: #24451c;
+
   cursor: pointer;
+
   font-weight: 700;
   text-align: left;
 }
@@ -1681,12 +2476,17 @@ watch(
 
 .status-badge {
   display: inline-block;
+
   padding: 5px 9px;
+
   border-radius: 999px;
+
   background-color: #e8f5e3;
   color: #2f6f1f;
+
   font-size: 13px;
   font-weight: 700;
+
   white-space: nowrap;
 }
 
@@ -1702,57 +2502,89 @@ watch(
 
 .empty-message {
   padding: 32px !important;
+
   color: #64748b;
+
   text-align: center !important;
 }
 
 .table-footer {
   margin-top: 20px;
+
   display: flex;
+
   align-items: center;
   justify-content: space-between;
+
   gap: 18px;
 }
 
 .table-footer p {
   margin: 0;
+
   color: #64748b;
+
   font-size: 14px;
 }
 
 .pagination-controls {
   display: flex;
+
   align-items: center;
+
   gap: 7px;
 }
 
 .pagination-controls button {
   min-height: 38px;
+
   padding: 7px 12px;
+
   border: 1px solid #c7d2c4;
   border-radius: 7px;
+
   background-color: #ffffff;
   color: #334155;
+
   cursor: pointer;
 }
 
-.pagination-controls button:hover:not(
+.pagination-controls
+  button:hover:not(
     :disabled
   ) {
   border-color: #438c2b;
+
   background-color: #edf7e9;
 }
 
-.pagination-controls button.active {
+.pagination-controls
+  button.active {
   border-color: #438c2b;
+
   background-color: #438c2b;
   color: #ffffff;
+
   font-weight: 700;
 }
 
-.pagination-controls button:disabled {
+.pagination-controls
+  button:disabled {
   cursor: not-allowed;
+
   opacity: 0.45;
+}
+
+@media (max-width: 991px) {
+  .table-heading-row {
+    flex-direction: column;
+  }
+
+  .table-actions {
+    width: 100%;
+
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 767px) {
@@ -1768,14 +2600,10 @@ watch(
     padding: 20px 16px;
   }
 
-  .table-heading-row,
   .table-footer {
     align-items: stretch;
-    flex-direction: column;
-  }
 
-  .reset-button {
-    width: 100%;
+    flex-direction: column;
   }
 
   .pagination-controls {
@@ -1790,6 +2618,22 @@ watch(
 
   .global-search {
     max-width: none;
+  }
+
+  .table-actions {
+    display: grid;
+
+    grid-template-columns:
+      repeat(
+        2,
+        minmax(0, 1fr)
+      );
+  }
+
+  .table-actions
+    .reset-button {
+    grid-column:
+      1 / -1;
   }
 }
 </style>
