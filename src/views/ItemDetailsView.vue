@@ -1,12 +1,14 @@
 <script setup>
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { wasteItems } from '../data/wasteItems.js'
 
 const route = useRoute()
 
-const item = wasteItems.find((wasteItem) => {
-  return wasteItem.id === Number(route.params.id)
+const item = computed(() => {
+  return wasteItems.find((wasteItem) => {
+    return wasteItem.id === Number(route.params.id)
+  })
 })
 
 const isSaved = ref(false)
@@ -116,7 +118,9 @@ function saveItem() {
 
           <h1>Item not found</h1>
 
-          <p>The requested recycling item could not be found.</p>
+          <p>
+            The requested recycling item could not be found.
+          </p>
 
           <RouterLink class="btn home-button" to="/">
             Return to Home

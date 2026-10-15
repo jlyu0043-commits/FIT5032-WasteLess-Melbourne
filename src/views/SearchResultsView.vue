@@ -1,19 +1,24 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, watch } from 'vue'
 import {
   useRoute,
   useRouter,
 } from 'vue-router'
+
 import SearchResultCard from '../components/SearchResultCard.vue'
 import { wasteItems } from '../data/wasteItems.js'
 
 const route = useRoute()
 const router = useRouter()
 
+function normalizeSearchQuery(query) {
+  return typeof query === 'string'
+    ? query.trim().slice(0, 80)
+    : ''
+}
+
 const searchText = ref(
-  typeof route.query.q === 'string'
-    ? route.query.q.trim().slice(0, 80)
-    : '',
+  normalizeSearchQuery(route.query.q),
 )
 
 const searchedText = ref(searchText.value)
@@ -49,7 +54,7 @@ function findResults() {
 
 function searchItems() {
   searchedText.value =
-    searchText.value.trim().slice(0, 80)
+    normalizeSearchQuery(searchText.value)
 
   findResults()
 
@@ -60,6 +65,26 @@ function searchItems() {
     },
   })
 }
+
+watch(
+  () => route.query.q,
+  (newQuery) => {
+    const normalizedQuery =
+      normalizeSearchQuery(newQuery)
+
+    if (
+      searchText.value === normalizedQuery &&
+      searchedText.value === normalizedQuery
+    ) {
+      return
+    }
+
+    searchText.value = normalizedQuery
+    searchedText.value = normalizedQuery
+
+    findResults()
+  },
+)
 
 findResults()
 </script>
@@ -73,7 +98,10 @@ findResults()
 
           <p>Find recycling information for your items.</p>
 
-          <form class="search-form" @submit.prevent="searchItems">
+          <form
+            class="search-form"
+            @submit.prevent="searchItems"
+          >
             <input
               v-model="searchText"
               type="text"
@@ -83,7 +111,10 @@ findResults()
               maxlength="80"
             />
 
-            <button class="btn search-button" type="submit">
+            <button
+              class="btn search-button"
+              type="submit"
+            >
               Search
             </button>
           </form>
@@ -93,12 +124,18 @@ findResults()
 
     <section class="results-section">
       <div class="container">
-        <h2 v-if="searchedText" class="results-heading">
+        <h2
+          v-if="searchedText"
+          class="results-heading"
+        >
           Results for
           <span>“{{ searchedText }}”</span>
         </h2>
 
-        <div v-if="results.length > 0" class="results-list">
+        <div
+          v-if="results.length > 0"
+          class="results-list"
+        >
           <SearchResultCard
             v-for="item in results"
             :key="item.id"
@@ -110,7 +147,9 @@ findResults()
           v-else-if="searchedText"
           class="no-results"
         >
-          <div class="no-results-icon">🔍</div>
+          <div class="no-results-icon">
+            🔍
+          </div>
 
           <h2>No results found</h2>
 
@@ -119,12 +158,19 @@ findResults()
           </p>
         </div>
 
-        <div v-else class="no-results">
-          <div class="no-results-icon">🔍</div>
+        <div
+          v-else
+          class="no-results"
+        >
+          <div class="no-results-icon">
+            🔍
+          </div>
 
           <h2>Search for an item</h2>
 
-          <p>Enter an item name in the search box above.</p>
+          <p>
+            Enter an item name in the search box above.
+          </p>
         </div>
       </div>
     </section>
