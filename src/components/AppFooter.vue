@@ -1,3 +1,4 @@
+
 <script setup>
 import { RouterLink } from 'vue-router'
 import { useAuth } from '../services/authService'
@@ -11,7 +12,9 @@ const { isAdmin } = useAuth()
       <div class="footer-links">
         <span class="footer-logo">♻</span>
 
-        <a href="#">Contact</a>
+        <RouterLink to="/contact">
+          Contact
+        </RouterLink>
 
         <a href="#">Privacy</a>
 
